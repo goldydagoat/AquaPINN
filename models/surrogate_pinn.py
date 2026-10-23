@@ -228,11 +228,15 @@ class PINNTrainer:
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.MSELoss()
 
-        history = []
+        total_history = []
+        data_history = []
+        physics_history = []
         self.model.train()
 
         for epoch in range(epochs):
-            epoch_loss = 0.0
+            epoch_total_loss = 0.0
+            epoch_data_loss = 0.0
+            epoch_physics_loss = 0.0
             for batch_x, batch_y in dataloader:
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
@@ -254,12 +258,23 @@ class PINNTrainer:
                 total_loss.backward()
                 optimizer.step()
 
-                epoch_loss += total_loss.item() * batch_x.size(0)
+                epoch_total_loss += total_loss.item() * batch_x.size(0)
+                epoch_data_loss += data_loss.item() * batch_x.size(0)
+                epoch_physics_loss += physics_loss.item() * batch_x.size(0)
 
-            epoch_loss /= len(dataset)
-            history.append(epoch_loss)
+            epoch_total_loss /= len(dataset)
+            epoch_data_loss /= len(dataset)
+            epoch_physics_loss /= len(dataset)
 
-        return history
+            total_history.append(epoch_total_loss)
+            data_history.append(epoch_data_loss)
+            physics_history.append(epoch_physics_loss)
+
+        return {
+            "total": total_history,
+            "data": data_history,
+            "physics": physics_history,
+        }
 
 
 def train_pinn(
@@ -268,11 +283,11 @@ def train_pinn(
     epochs: int = 200,
     hidden_dim: int = 64,
     physics_weight: float = 0.01,
-) -> Tuple[ASM1PINN, List[float]]:
+) -> Tuple[ASM1PINN, Dict[str, List[float]]]:
     """
     Convenience function to generate ASM1 simulation dataset and train ASM1PINN surrogate.
     
-    Returns trained ASM1PINN model and training loss history.
+    Returns trained ASM1PINN model and training loss history dictionary.
     """
     sim_df = simulate_asm1(days=days, num_points=num_samples)
     

@@ -197,6 +197,40 @@ def run_simulation(q, v, k, ss_in, snh_in, days, t_c):
     )
 
 sim_df = run_simulation(flow_rate, volume, kla, influent_cod, influent_nh4, srt, temp)
+final_row = sim_df.iloc[-1]
+
+# 1. Environmental Compliance Alert Banner
+compliance_ok = (final_row['S_NH'] <= 5.0) and (final_row['COD_total'] <= 60.0) and (final_row['S_O'] >= 2.0)
+if compliance_ok:
+    st.success("✅ **ENVIRONMENTAL COMPLIANCE STATUS: COMPLIANT** — All effluent discharge parameters (Ammonium $S_{NH}$ ≤ 5.0 g/m³, Total COD ≤ 60.0 g/m³, Dissolved Oxygen ≥ 2.0 g/m³) meet stringent regulatory standards (EU Urban Wastewater Directive / IWA BSM1 targets).")
+else:
+    alerts = []
+    if final_row['S_NH'] > 5.0:
+        alerts.append(f"Effluent Ammonium $S_{NH}$ is {final_row['S_NH']:.2f} g/m³ (Limit: ≤ 5.0 g/m³)")
+    if final_row['COD_total'] > 60.0:
+        alerts.append(f"Effluent COD is {final_row['COD_total']:.1f} g/m³ (Limit: ≤ 60.0 g/m³)")
+    if final_row['S_O'] < 2.0:
+        alerts.append(f"Effluent Dissolved Oxygen is {final_row['S_O']:.2f} g O₂/m³ (Limit: ≥ 2.0 g/m³)")
+    st.error(f"⚠️ **ENVIRONMENTAL COMPLIANCE ALERT: THRESHOLD EXCEEDED** — {'; '.join(alerts)}. Immediate operational adjustment required.")
+
+# 2. Executive KPI Metrics Bar (Influent vs. Effluent Mass Reduction)
+st.markdown("### 📊 Executive KPI & Mass Reduction Bar")
+kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+with kpi1:
+    st.metric("Influent Flow ($Q$)", f"{flow_rate:.0f} m³/d", f"Reactor Vol: {volume:.0f} m³")
+with kpi2:
+    st.metric("Influent COD ($S_S$)", f"{influent_cod:.1f} g/m³", "Raw Load")
+with kpi3:
+    cod_rem = final_row['COD_removal_pct']
+    st.metric("COD Mass Reduction", f"{cod_rem:.1f}%", f"Effluent: {final_row['COD_total']:.1f} g/m³", delta=f"{cod_rem - 85.0:+.1f}% vs target")
+with kpi4:
+    tn_in_approx = influent_nh4 + 12.0
+    tn_rem = max(0.0, (1.0 - final_row['TN'] / max(tn_in_approx, 1.0)) * 100.0)
+    st.metric("Nitrogen Mass Reduction", f"{tn_rem:.1f}%", f"Effluent TN: {final_row['TN']:.1f} g N/m³", delta=f"{tn_rem - 75.0:+.1f}% vs target")
+with kpi5:
+    st.metric("Nitrification Efficiency", f"{final_row['NH_removal_pct']:.1f}%", f"Effluent $S_{{NH}}$: {final_row['S_NH']:.2f} g/m³")
+
+st.divider()
 
 # Session state management for PINN training & checkpointing
 if "pinn_model" not in st.session_state:
@@ -244,7 +278,7 @@ if has_scada:
         "📁 Dataset & Benchmark",
         "📈 ASM1 ODE Simulation",
         "🤖 PINN vs ODE Surrogate",
-        "⚖️ Mass Balance & Physics Loss",
+        "🔬 Model Diagnostics",
         "💡 Process Control & Advisor",
     ])
     
@@ -288,7 +322,7 @@ else:
     tab1, tab2, tab3, tab4 = st.tabs([
         "📈 ASM1 ODE Simulation",
         "🤖 PINN vs ODE Surrogate",
-        "⚖️ Mass Balance & Physics Loss",
+        "🔬 Model Diagnostics",
         "💡 Process Control & Advisor",
     ])
 
@@ -414,32 +448,53 @@ with tab2:
             st.metric("Mean Absolute Error (MAE)", f"{mae:.4f} {STATE_UNITS.get(compare_state, '')}")
 
 with tab3:
-    st.subheader("Physics Loss & Mass Conservation Tracking")
-    st.markdown("Monitoring mass-balance conservation residuals and PINN training convergence history.")
+    st.subheader("🔬 PINN Model Diagnostics & Loss Convergence Analysis")
+    st.markdown("Monitoring dual-loss optimization convergence: Data-driven supervised loss ($\mathcal{L}_{\text{data}}$) vs. Physics-informed ASM1 conservation loss ($\mathcal{L}_{\text{physics}}$).")
 
     if st.session_state.train_history is not None:
-        history_df = pd.DataFrame({
-            "Epoch": range(1, len(st.session_state.train_history) + 1),
-            "Total Loss": st.session_state.train_history,
-        })
-        fig_loss = px.line(
-            history_df,
-            x="Epoch",
-            y="Total Loss",
-            title="PINN Training Convergence (Data Loss + Physics Conservation Loss)",
-            template="plotly_white",
-        )
-        fig_loss.update_layout(height=400)
-        st.plotly_chart(fig_loss, use_container_width=True)
-    else:
-        st.info("ℹ️ Train the PINN model to visualize training convergence and physics loss curves.")
+        hist = st.session_state.train_history
+        if isinstance(hist, dict) and "data" in hist and "physics" in hist and "total" in hist:
+            epochs_range = list(range(1, len(hist["total"]) + 1))
+            diag_df = pd.DataFrame({
+                "Epoch": epochs_range * 3,
+                "Loss Value": hist["data"] + hist["physics"] + hist["total"],
+                "Loss Type": ["Data Loss (L_data)"] * len(epochs_range) + ["Physics Loss (L_physics)"] * len(epochs_range) + ["Total Loss (L_total)"] * len(epochs_range),
+            })
+            fig_diag = px.line(
+                diag_df,
+                x="Epoch",
+                y="Loss Value",
+                color="Loss Type",
+                log_y=True,
+                title="PINN Training Convergence: Data Loss vs. Physics Conservation Loss (Log Scale)",
+                template="plotly_white",
+            )
+            fig_diag.update_layout(height=450, hovermode="x unified")
+            st.plotly_chart(fig_diag, use_container_width=True)
 
-    st.markdown("### Mass Conservation Analysis")
+            d1, d2, d3 = st.columns(3)
+            with d1:
+                st.metric("Final Data Loss ($\mathcal{L}_{\text{data}}$)", f"{hist['data'][-1]:.6f}")
+            with d2:
+                st.metric("Final Physics Loss ($\mathcal{L}_{\text{physics}}$)", f"{hist['physics'][-1]:.6f}")
+            with d3:
+                st.metric("Final Total Loss ($\mathcal{L}_{\text{total}}$)", f"{hist['total'][-1]:.6f}")
+        else:
+            history_df = pd.DataFrame({
+                "Epoch": range(1, len(hist) + 1),
+                "Total Loss": hist if isinstance(hist, list) else hist.get("total", [0]),
+            })
+            fig_loss = px.line(history_df, x="Epoch", y="Total Loss", title="PINN Training Convergence", template="plotly_white")
+            st.plotly_chart(fig_loss, use_container_width=True)
+    else:
+        st.info("ℹ️ Train the PINN surrogate model using the sidebar control panel (**Train PINN Surrogate**) to view model diagnostics and loss convergence curves.")
+
+    st.markdown("### Governing Physics Constraints & Autograd Residuals")
     st.markdown(
         """
-        The ASM1 model strictly obeys mass conservation laws for Chemical Oxygen Demand (COD), Total Nitrogen (TN),
-        and electrical charge (Alkalinity). The PINN surrogate embeds these governing differential equations
-        directly into the neural network loss function via automatic differentiation ($\mathcal{L}_{physics} = ||\frac{dy}{dt} - f(y,u)||^2$).
+        - **Data Loss ($\mathcal{L}_{\text{data}}$):** Mean Squared Error (MSE) fitting BSM1 benchmark observations.
+        - **Physics Loss ($\mathcal{L}_{\text{physics}}$):** ASM1 reaction rate kinetics ($\rho_1, \rho_3$), non-negativity barrier penalties for $S_O, S_S, S_{NH}, X_{BH}$, and total COD mass balance constraints.
+        - **Automatic Differentiation:** Neural network gradients $\frac{dy}{dt}$ are evaluated via PyTorch autograd to enforce dynamic continuity across wet-weather hydraulic surges.
         """
     )
     
