@@ -3,3 +3,8 @@ __pycache__/
 .env
 .venv/
 .streamlit/secrets.toml
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.DS_Store
