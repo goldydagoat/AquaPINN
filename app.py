@@ -4,6 +4,7 @@ Streamlit Web Application combining ASM1 First-Principles ODE Simulation with Py
 """
 
 from __future__ import annotations
+from pathlib import Path
 import time
 import numpy as np
 import pandas as pd
@@ -175,10 +176,29 @@ def run_simulation(q, v, k, ss_in, snh_in, days, t_c):
 
 sim_df = run_simulation(flow_rate, volume, kla, influent_cod, influent_nh4, srt, temp)
 
-# Session state management for PINN training
+# Session state management for PINN training & checkpointing
 if "pinn_model" not in st.session_state:
-    st.session_state.pinn_model = None
-    st.session_state.train_history = None
+    checkpoint_path = Path("checkpoints/pinn_asm1.pt")
+    if checkpoint_path.exists():
+        try:
+            st.session_state.pinn_model = ASM1PINN.load_checkpoint(checkpoint_path)
+            st.session_state.train_history = []
+            st.session_state.checkpoint_loaded = True
+        except Exception:
+            st.session_state.pinn_model = None
+            st.session_state.train_history = None
+            st.session_state.checkpoint_loaded = False
+    else:
+        st.session_state.pinn_model = None
+        st.session_state.train_history = None
+        st.session_state.checkpoint_loaded = False
+
+# Sidebar status & warning
+if st.session_state.pinn_model is None:
+    st.sidebar.warning("⚠️ No model checkpoint found at `checkpoints/pinn_asm1.pt`. Please train the PINN surrogate model.")
+else:
+    if getattr(st.session_state, "checkpoint_loaded", False):
+        st.sidebar.success("✅ Loaded pre-trained PINN checkpoint from `checkpoints/pinn_asm1.pt`.")
 
 if train_button:
     with st.spinner("Training Physics-Informed Neural Network (PINN) surrogate on ASM1 dynamics..."):
@@ -189,9 +209,11 @@ if train_button:
             hidden_dim=hidden_units,
             physics_weight=physics_w,
         )
+        model.save_checkpoint("checkpoints/pinn_asm1.pt")
         st.session_state.pinn_model = model
         st.session_state.train_history = history
-    st.success("✅ PINN Surrogate model successfully trained with mass conservation constraints!")
+        st.session_state.checkpoint_loaded = True
+    st.success("✅ PINN Surrogate model successfully trained, saved to `checkpoints/pinn_asm1.pt`, and loaded!")
 
 # Tabs Layout Setup
 has_scada = (input_mode == "📊 SCADA Dataset Mode" and st.session_state.scada_df is not None)
@@ -300,8 +322,10 @@ with tab2:
         if st.button("Train Quick PINN Now"):
             with st.spinner("Quick training in progress..."):
                 model, history = train_pinn(days=srt, num_samples=200, epochs=80, hidden_dim=64, physics_weight=0.01)
+                model.save_checkpoint("checkpoints/pinn_asm1.pt")
                 st.session_state.pinn_model = model
                 st.session_state.train_history = history
+                st.session_state.checkpoint_loaded = True
             st.rerun()
     else:
         model = st.session_state.pinn_model

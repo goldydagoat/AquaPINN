@@ -9,6 +9,7 @@ This module implements:
 
 from __future__ import annotations
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
@@ -96,6 +97,40 @@ class ASM1PINN(nn.Module):
         self.input_std.copy_(torch.tensor(X.std(axis=0) + 1e-6, dtype=torch.float32, device=device))
         self.output_mean.copy_(torch.tensor(Y.mean(axis=0), dtype=torch.float32, device=device))
         self.output_std.copy_(torch.tensor(Y.std(axis=0) + 1e-6, dtype=torch.float32, device=device))
+
+    def save_checkpoint(self, filepath: Union[str, Path] = "checkpoints/pinn_asm1.pt") -> None:
+        """Save model checkpoint (weights and config) to disk, creating directory if needed."""
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "config": {
+                "input_dim": self.config.input_dim,
+                "hidden_dim": self.config.hidden_dim,
+                "num_layers": self.config.num_layers,
+                "output_dim": self.config.output_dim,
+                "learning_rate": self.config.learning_rate,
+                "epochs": self.config.epochs,
+                "physics_weight": self.config.physics_weight,
+                "data_weight": self.config.data_weight,
+                "batch_size": self.config.batch_size,
+                "device": self.config.device,
+            },
+            "state_dict": self.state_dict(),
+        }, path)
+
+    @classmethod
+    def load_checkpoint(cls, filepath: Union[str, Path] = "checkpoints/pinn_asm1.pt") -> ASM1PINN:
+        """Load model checkpoint from disk and return instantiated ASM1PINN model."""
+        path = Path(filepath)
+        if not path.exists():
+            raise FileNotFoundError(f"Checkpoint not found at {path}")
+        checkpoint = torch.load(path, map_location="cpu")
+        config_dict = checkpoint.get("config", {})
+        config = PINNConfig(**config_dict)
+        model = cls(config=config)
+        model.load_state_dict(checkpoint["state_dict"])
+        model.eval()
+        return model
 
 
 class PINNTrainer:
