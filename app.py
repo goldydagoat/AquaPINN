@@ -22,6 +22,7 @@ from models.asm1_ode import (
     get_default_influent,
 )
 from models.surrogate_pinn import ASM1PINN, PINNConfig, PINNTrainer, train_pinn
+from data_handler import process_scada_file, generate_sample_scada_csv
 
 # Page Configuration
 st.set_page_config(
@@ -60,18 +61,74 @@ st.markdown(
 
 # Sidebar Controls
 st.sidebar.markdown("## ⚙️ Operational Controls")
-st.sidebar.markdown("Configure bioreactor operating conditions and PINN surrogate settings.")
+input_mode = st.sidebar.radio(
+    "Operating Mode",
+    options=["🎛️ Manual Slider Controls", "📊 SCADA Dataset Mode"],
+    index=0,
+    help="Switch seamlessly between manual slider parameters and uploaded dynamic SCADA time-series CSV datasets.",
+)
 
-with st.sidebar.expander("Reactor & Hydraulics", expanded=True):
-    flow_rate = st.slider("Influent Flow Rate ($Q$, m³/d)", 200.0, 5000.0, 1000.0, 50.0)
-    volume = st.slider("Reactor Volume ($V$, m³)", 200.0, 5000.0, 1000.0, 50.0)
-    srt = st.slider("Simulation Duration (Days)", 1.0, 30.0, 5.0, 0.5)
-    temp = st.slider("Temperature (°C)", 10.0, 35.0, 20.0, 0.5)
+# Session state initialization for SCADA data
+if "scada_df" not in st.session_state:
+    st.session_state.scada_df = None
 
-with st.sidebar.expander("Influent Characteristics", expanded=True):
-    influent_cod = st.slider("Influent Readily Biodegradable COD ($S_S$, g/m³)", 50.0, 500.0, 150.0, 10.0)
-    influent_nh4 = st.slider("Influent Ammonium ($S_{NH}$, g/m³)", 10.0, 100.0, 35.0, 2.0)
-    kla = st.slider("Oxygen Transfer Coefficient ($K_L a$, 1/d)", 20.0, 300.0, 120.0, 10.0)
+if input_mode == "📊 SCADA Dataset Mode":
+    st.sidebar.markdown("### SCADA Data Upload")
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload SCADA Time-Series CSV",
+        type=["csv"],
+        help="Upload CSV containing timestamp, flow Q, influent COD, NH4-N, and temperature.",
+    )
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Sample Dataset Template**")
+    sample_csv_bytes = generate_sample_scada_csv()
+    st.sidebar.download_button(
+        "📥 Download Sample SCADA CSV",
+        data=sample_csv_bytes,
+        file_name="sample_scada_influent.csv",
+        mime="text/csv",
+        help="Download a realistic synthetic 7-day SCADA dataset with diurnal loading patterns and missing values.",
+    )
+
+    with st.sidebar.expander("Reactor Configuration", expanded=True):
+        volume = st.slider("Reactor Volume ($V$, m³)", 200.0, 5000.0, 1000.0, 50.0)
+        kla = st.slider("Oxygen Transfer Coefficient ($K_L a$, 1/d)", 20.0, 300.0, 120.0, 10.0)
+
+    if uploaded_file is not None:
+        scada_df, errors, warnings = process_scada_file(uploaded_file)
+        if errors:
+            for err in errors:
+                st.sidebar.error(err)
+            st.session_state.scada_df = None
+            flow_rate, influent_cod, influent_nh4, temp, srt = 1000.0, 150.0, 35.0, 20.0, 5.0
+        else:
+            for warn in warnings:
+                st.sidebar.warning(warn)
+            st.session_state.scada_df = scada_df
+            flow_rate = float(scada_df["flow_rate"].mean())
+            influent_cod = float(scada_df["influent_cod"].mean())
+            influent_nh4 = float(scada_df["influent_nh4"].mean())
+            temp = float(scada_df["temperature"].mean())
+            srt = float(max(scada_df["time_days"].max(), 1.0))
+            st.sidebar.success(f"✅ SCADA Loaded Successfully!\n• Data Points: {len(scada_df)}\n• Duration: {srt:.1f} days\n• Mean Q: {flow_rate:.0f} m³/d")
+    else:
+        st.session_state.scada_df = None
+        flow_rate, influent_cod, influent_nh4, temp, srt = 1000.0, 150.0, 35.0, 20.0, 5.0
+        st.sidebar.info("ℹ️ Please upload a SCADA CSV file or download the sample dataset above to start.")
+
+else:
+    st.session_state.scada_df = None
+    with st.sidebar.expander("Reactor & Hydraulics", expanded=True):
+        flow_rate = st.slider("Influent Flow Rate ($Q$, m³/d)", 200.0, 5000.0, 1000.0, 50.0)
+        volume = st.slider("Reactor Volume ($V$, m³)", 200.0, 5000.0, 1000.0, 50.0)
+        srt = st.slider("Simulation Duration (Days)", 1.0, 30.0, 5.0, 0.5)
+        temp = st.slider("Temperature (°C)", 10.0, 35.0, 20.0, 0.5)
+
+    with st.sidebar.expander("Influent Characteristics", expanded=True):
+        influent_cod = st.slider("Influent Readily Biodegradable COD ($S_S$, g/m³)", 50.0, 500.0, 150.0, 10.0)
+        influent_nh4 = st.slider("Influent Ammonium ($S_{NH}$, g/m³)", 10.0, 100.0, 35.0, 2.0)
+        kla = st.slider("Oxygen Transfer Coefficient ($K_L a$, 1/d)", 20.0, 300.0, 120.0, 10.0)
 
 with st.sidebar.expander("PINN Surrogate Training", expanded=False):
     pinn_epochs = st.slider("Training Epochs", 50, 500, 150, 25)
@@ -136,13 +193,56 @@ if train_button:
         st.session_state.train_history = history
     st.success("✅ PINN Surrogate model successfully trained with mass conservation constraints!")
 
-# Tabs Layout
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 ASM1 ODE Simulation",
-    "🤖 PINN vs ODE Surrogate",
-    "⚖️ Mass Balance & Physics Loss",
-    "💡 Process Control & Advisor",
-])
+# Tabs Layout Setup
+has_scada = (input_mode == "📊 SCADA Dataset Mode" and st.session_state.scada_df is not None)
+if has_scada:
+    scada_tab, tab1, tab2, tab3, tab4 = st.tabs([
+        "📁 SCADA Time-Series Data",
+        "📈 ASM1 ODE Simulation",
+        "🤖 PINN vs ODE Surrogate",
+        "⚖️ Mass Balance & Physics Loss",
+        "💡 Process Control & Advisor",
+    ])
+    
+    with scada_tab:
+        st.subheader("Uploaded SCADA Time-Series Dataset")
+        st.markdown("Interpolated and validated operational time-series data from plant SCADA systems.")
+        
+        scada_df = st.session_state.scada_df
+        s_col1, s_col2, s_col3, s_col4 = st.columns(4)
+        with s_col1:
+            st.metric("Total Records", f"{len(scada_df)}")
+        with s_col2:
+            st.metric("Mean Influent Flow ($Q$)", f"{scada_df['flow_rate'].mean():.1f} m³/d")
+        with s_col3:
+            st.metric("Mean Influent COD ($S_S$)", f"{scada_df['influent_cod'].mean():.1f} g/m³")
+        with s_col4:
+            st.metric("Mean Temperature", f"{scada_df['temperature'].mean():.1f} °C")
+
+        # Plot SCADA time series
+        fig_scada = go.Figure()
+        fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["flow_rate"], name="Flow Q (m³/d)", line=dict(color="#2563EB")))
+        fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["influent_cod"], name="Influent COD (g/m³)", yaxis="y2", line=dict(color="#DC2626")))
+        fig_scada.update_layout(
+            title="SCADA Influent Flow and COD Time Series",
+            xaxis_title="Timestamp",
+            yaxis=dict(title="Flow Rate (m³/d)", titlefont=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
+            yaxis2=dict(title="COD (g/m³)", titlefont=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
+            template="plotly_white",
+            height=400,
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_scada, use_container_width=True)
+
+        with st.expander("🔍 View Processed SCADA Data Table"):
+            st.dataframe(scada_df, use_container_width=True)
+else:
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 ASM1 ODE Simulation",
+        "🤖 PINN vs ODE Surrogate",
+        "⚖️ Mass Balance & Physics Loss",
+        "💡 Process Control & Advisor",
+    ])
 
 with tab1:
     st.subheader("Benchmark ASM1 ODE Dynamic Simulation")
