@@ -199,3 +199,90 @@ def generate_sample_scada_csv(num_days: int = 7, points_per_day: int = 24) -> st
     })
 
     return sample_df.to_csv(index=False)
+
+
+def load_bsm1_benchmark(weather_condition: str = "Dry Weather", num_days: int = 7, points_per_day: int = 96) -> pd.DataFrame:
+    """
+    Generate IWA BSM1-style influent benchmark profiles for Dry Weather, Rain Event, and Storm Event.
+    
+    Args:
+        weather_condition: One of "Dry Weather", "Rain Event", "Storm Event".
+        num_days: Duration in days (default 7).
+        points_per_day: Temporal resolution (default 96 points/day = 15-minute intervals).
+    
+    Returns:
+        pd.DataFrame with columns: timestamp, time_days, flow_rate, influent_cod, influent_nh4, temperature
+    """
+    total_points = num_days * points_per_day
+    timestamps = pd.date_range(start="2026-06-01 00:00:00", periods=total_points, freq="15min")
+    t_hours = np.arange(total_points) * (24.0 / points_per_day)
+    t_days = t_hours / 24.0
+
+    condition = weather_condition.strip().title()
+    if "Rain" in condition:
+        cond_type = "rain"
+    elif "Storm" in condition:
+        cond_type = "storm"
+    else:
+        cond_type = "dry"
+
+    q_base = 1000.0
+    q_diurnal = 300.0 * np.sin(2.0 * np.pi * (t_hours - 6.0) / 24.0) + 150.0 * np.sin(2.0 * np.pi * (t_hours - 18.0) / 24.0)
+    
+    cod_base = 150.0
+    cod_diurnal = 40.0 * np.sin(2.0 * np.pi * (t_hours - 8.0) / 24.0)
+
+    nh4_base = 31.5
+    nh4_diurnal = 8.0 * np.sin(2.0 * np.pi * (t_hours - 7.0) / 24.0)
+
+    temp_base = 15.0 + 2.0 * np.sin(2.0 * np.pi * t_days / 365.0)
+
+    if cond_type == "rain":
+        rain_mask = (t_days >= 2.0) & (t_days <= 3.5)
+        rain_pulse = 700.0 * np.sin(np.pi * (t_days[rain_mask] - 2.0) / 1.5)
+        q_diurnal_mod = q_diurnal.copy()
+        q_diurnal_mod[rain_mask] += rain_pulse
+        
+        flow_rate = q_base + q_diurnal_mod
+        influent_cod = (cod_base + cod_diurnal) * np.where(rain_mask, 0.65, 1.0)
+        influent_nh4 = (nh4_base + nh4_diurnal) * np.where(rain_mask, 0.60, 1.0)
+        temperature = temp_base - np.where(rain_mask, 1.5, 0.0)
+
+    elif cond_type == "storm":
+        storm_mask = (t_days >= 2.5) & (t_days <= 3.0)
+        storm_surge = 1500.0 * np.sin(np.pi * (t_days[storm_mask] - 2.5) / 0.5)
+        q_diurnal_mod = q_diurnal.copy()
+        q_diurnal_mod[storm_mask] += storm_surge
+
+        flow_rate = q_base + q_diurnal_mod
+        first_flush = (t_days >= 2.5) & (t_days < 2.65)
+        cod_mod = (cod_base + cod_diurnal) * np.where(storm_mask, 0.5, 1.0)
+        cod_mod[first_flush] *= 1.8
+
+        nh4_mod = (nh4_base + nh4_diurnal) * np.where(storm_mask, 0.45, 1.0)
+        temperature = temp_base - np.where(storm_mask, 2.5, 0.0)
+        
+        influent_cod = cod_mod
+        influent_nh4 = nh4_mod
+
+    else:
+        flow_rate = q_base + q_diurnal
+        influent_cod = cod_base + cod_diurnal
+        influent_nh4 = nh4_base + nh4_diurnal
+        temperature = temp_base
+
+    flow_rate = np.clip(flow_rate + np.random.normal(0, 15.0, total_points), 200.0, 4000.0)
+    influent_cod = np.clip(influent_cod + np.random.normal(0, 5.0, total_points), 50.0, 500.0)
+    influent_nh4 = np.clip(influent_nh4 + np.random.normal(0, 1.5, total_points), 5.0, 100.0)
+    temperature = np.clip(temperature + np.random.normal(0, 0.2, total_points), 10.0, 30.0)
+
+    df = pd.DataFrame({
+        "timestamp": timestamps,
+        "time_days": t_days,
+        "flow_rate": flow_rate,
+        "influent_cod": influent_cod,
+        "influent_nh4": influent_nh4,
+        "temperature": temperature,
+    })
+    return df
+

@@ -23,7 +23,7 @@ from models.asm1_ode import (
     get_default_influent,
 )
 from models.surrogate_pinn import ASM1PINN, PINNConfig, PINNTrainer, train_pinn
-from data_handler import process_scada_file, generate_sample_scada_csv
+from data_handler import process_scada_file, generate_sample_scada_csv, load_bsm1_benchmark
 
 # Page Configuration
 st.set_page_config(
@@ -64,9 +64,9 @@ st.markdown(
 st.sidebar.markdown("## ⚙️ Operational Controls")
 input_mode = st.sidebar.radio(
     "Operating Mode",
-    options=["🎛️ Manual Slider Controls", "📊 SCADA Dataset Mode"],
+    options=["🎛️ Manual Slider Controls", "📊 SCADA Dataset Mode", "🌊 IWA BSM1 Benchmark"],
     index=0,
-    help="Switch seamlessly between manual slider parameters and uploaded dynamic SCADA time-series CSV datasets.",
+    help="Switch seamlessly between manual slider parameters, uploaded SCADA CSV datasets, and standardized IWA BSM1 benchmark scenarios.",
 )
 
 # Session state initialization for SCADA data
@@ -117,6 +117,28 @@ if input_mode == "📊 SCADA Dataset Mode":
         st.session_state.scada_df = None
         flow_rate, influent_cod, influent_nh4, temp, srt = 1000.0, 150.0, 35.0, 20.0, 5.0
         st.sidebar.info("ℹ️ Please upload a SCADA CSV file or download the sample dataset above to start.")
+
+elif input_mode == "🌊 IWA BSM1 Benchmark":
+    st.sidebar.markdown("### IWA BSM1 Benchmark Profile")
+    weather_cond = st.sidebar.selectbox(
+        "Weather Condition",
+        options=["Dry Weather", "Rain Event", "Storm Event"],
+        index=0,
+        help="Select standard IWA Benchmark Simulation Model No. 1 (BSM1) influent disturbance scenario.",
+    )
+
+    with st.sidebar.expander("Reactor Configuration", expanded=True):
+        volume = st.slider("Reactor Volume ($V$, m³)", 200.0, 5000.0, 1000.0, 50.0)
+        kla = st.slider("Oxygen Transfer Coefficient ($K_L a$, 1/d)", 20.0, 300.0, 120.0, 10.0)
+
+    bsm1_df = load_bsm1_benchmark(weather_condition=weather_cond, num_days=7)
+    st.session_state.scada_df = bsm1_df
+    flow_rate = float(bsm1_df["flow_rate"].mean())
+    influent_cod = float(bsm1_df["influent_cod"].mean())
+    influent_nh4 = float(bsm1_df["influent_nh4"].mean())
+    temp = float(bsm1_df["temperature"].mean())
+    srt = float(max(bsm1_df["time_days"].max(), 1.0))
+    st.sidebar.success(f"✅ BSM1 {weather_cond} Loaded!\n• Duration: {srt:.1f} days\n• Mean Q: {flow_rate:.0f} m³/d\n• Mean COD: {influent_cod:.1f} g/m³")
 
 else:
     st.session_state.scada_df = None
@@ -216,10 +238,10 @@ if train_button:
     st.success("✅ PINN Surrogate model successfully trained, saved to `checkpoints/pinn_asm1.pt`, and loaded!")
 
 # Tabs Layout Setup
-has_scada = (input_mode == "📊 SCADA Dataset Mode" and st.session_state.scada_df is not None)
+has_scada = (input_mode in ["📊 SCADA Dataset Mode", "🌊 IWA BSM1 Benchmark"] and st.session_state.scada_df is not None)
 if has_scada:
     scada_tab, tab1, tab2, tab3, tab4 = st.tabs([
-        "📁 SCADA Time-Series Data",
+        "📁 Dataset & Benchmark",
         "📈 ASM1 ODE Simulation",
         "🤖 PINN vs ODE Surrogate",
         "⚖️ Mass Balance & Physics Loss",
@@ -227,8 +249,12 @@ if has_scada:
     ])
     
     with scada_tab:
-        st.subheader("Uploaded SCADA Time-Series Dataset")
-        st.markdown("Interpolated and validated operational time-series data from plant SCADA systems.")
+        if input_mode == "🌊 IWA BSM1 Benchmark":
+            st.subheader(f"IWA BSM1 Benchmark Influent Profile ({weather_cond})")
+            st.markdown(f"Standardized International Water Association (IWA) Benchmark Simulation Model No. 1 (BSM1) influent disturbance scenario: **{weather_cond}**.")
+        else:
+            st.subheader("Uploaded SCADA Time-Series Dataset")
+            st.markdown("Interpolated and validated operational time-series data from plant SCADA systems.")
         
         scada_df = st.session_state.scada_df
         s_col1, s_col2, s_col3, s_col4 = st.columns(4)
@@ -246,7 +272,7 @@ if has_scada:
         fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["flow_rate"], name="Flow Q (m³/d)", line=dict(color="#2563EB")))
         fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["influent_cod"], name="Influent COD (g/m³)", yaxis="y2", line=dict(color="#DC2626")))
         fig_scada.update_layout(
-            title="SCADA Influent Flow and COD Time Series",
+            title=f"Influent Flow and COD Time Series ({input_mode})",
             xaxis_title="Timestamp",
             yaxis=dict(title="Flow Rate (m³/d)", titlefont=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
             yaxis2=dict(title="COD (g/m³)", titlefont=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
@@ -256,7 +282,7 @@ if has_scada:
         )
         st.plotly_chart(fig_scada, use_container_width=True)
 
-        with st.expander("🔍 View Processed SCADA Data Table"):
+        with st.expander("🔍 View Time-Series Data Table"):
             st.dataframe(scada_df, use_container_width=True)
 else:
     tab1, tab2, tab3, tab4 = st.tabs([
