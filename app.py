@@ -206,7 +206,7 @@ if compliance_ok:
 else:
     alerts = []
     if final_row['S_NH'] > 5.0:
-        alerts.append(f"Effluent Ammonium $S_{NH}$ is {final_row['S_NH']:.2f} g/m³ (Limit: ≤ 5.0 g/m³)")
+        alerts.append(f"Effluent Ammonium $S_{{NH}}$ is {final_row['S_NH']:.2f} g/m³ (Limit: ≤ 5.0 g/m³)")
     if final_row['COD_total'] > 60.0:
         alerts.append(f"Effluent COD is {final_row['COD_total']:.1f} g/m³ (Limit: ≤ 60.0 g/m³)")
     if final_row['S_O'] < 2.0:
