@@ -308,8 +308,8 @@ if has_scada:
         fig_scada.update_layout(
             title=dict(text=f"Influent Flow and COD Time Series ({input_mode})"),
             xaxis=dict(title_text="Timestamp"),
-            yaxis=dict(title_text="Flow Rate (m³/d)", titlefont=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
-            yaxis2=dict(title_text="COD (g/m³)", titlefont=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
+            yaxis=dict(title_text="Flow Rate (m³/d)", title_font=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
+            yaxis2=dict(title_text="COD (g/m³)", title_font=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
             template="plotly_white",
             height=400,
             hovermode="x unified",
