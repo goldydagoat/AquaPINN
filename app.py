@@ -233,8 +233,8 @@ with kpi5:
 st.divider()
 
 # Session state management for PINN training & checkpointing
-if "pinn_model" not in st.session_state:
-    checkpoint_path = Path("checkpoints/pinn_asm1.pt")
+checkpoint_path = Path("checkpoints/pinn_asm1.pt")
+if "pinn_model" not in st.session_state or st.session_state.pinn_model is None:
     if checkpoint_path.exists():
         try:
             st.session_state.pinn_model = ASM1PINN.load_checkpoint(checkpoint_path)
@@ -249,12 +249,11 @@ if "pinn_model" not in st.session_state:
         st.session_state.train_history = None
         st.session_state.checkpoint_loaded = False
 
-# Sidebar status & warning
-if st.session_state.pinn_model is None:
-    st.sidebar.warning("⚠️ No model checkpoint found at `checkpoints/pinn_asm1.pt`. Please train the PINN surrogate model.")
+# Sidebar status & dynamic warning/success check on checkpoint existence
+if checkpoint_path.exists() or getattr(st.session_state, "checkpoint_loaded", False) or st.session_state.pinn_model is not None:
+    st.sidebar.success("✅ Pre-trained PINN checkpoint active (`checkpoints/pinn_asm1.pt`).")
 else:
-    if getattr(st.session_state, "checkpoint_loaded", False):
-        st.sidebar.success("✅ Loaded pre-trained PINN checkpoint from `checkpoints/pinn_asm1.pt`.")
+    st.sidebar.warning("⚠️ No model checkpoint found at `checkpoints/pinn_asm1.pt`. Please train the PINN surrogate model.")
 
 if train_button:
     with st.spinner("Training Physics-Informed Neural Network (PINN) surrogate on ASM1 dynamics..."):
@@ -270,6 +269,7 @@ if train_button:
         st.session_state.train_history = history
         st.session_state.checkpoint_loaded = True
     st.success("✅ PINN Surrogate model successfully trained, saved to `checkpoints/pinn_asm1.pt`, and loaded!")
+    st.rerun()
 
 # Tabs Layout Setup
 has_scada = (input_mode in ["📊 SCADA Dataset Mode", "🌊 IWA BSM1 Benchmark"] and st.session_state.scada_df is not None)

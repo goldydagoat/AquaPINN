@@ -36,8 +36,8 @@ class PINNConfig:
     output_dim: int = NUM_STATES  # 13 ASM1 state variables
     learning_rate: float = 1e-3
     epochs: int = 500
-    physics_weight: float = 0.01  # Weight for PDE/ODE residual loss
-    data_weight: float = 1.0      # Weight for supervised data loss
+    physics_weight: float = 0.001  # Balanced weight for PDE/ODE residual loss
+    data_weight: float = 1.0       # Weight for supervised data loss
     batch_size: int = 64
     device: str = "cpu"
 
@@ -80,15 +80,15 @@ class ASM1PINN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Predict ASM1 states from input features with guaranteed non-negativity.
+        Forward pass: Predict ASM1 states from input features with guaranteed non-negativity and range bounds.
         x tensor shape: (batch_size, input_dim)
         """
         # Apply normalization if stats are fitted
         x_norm = (x - self.input_mean) / (self.input_std + 1e-8)
         y_norm = self.network(x_norm)
-        # Denormalize output predictions and ensure non-negative concentrations via softplus / relu
+        # Denormalize output predictions and clamp to realistic upper concentration bounds (5000 g/m³) to prevent scale explosion
         y = y_norm * (self.output_std + 1e-8) + self.output_mean
-        return torch.nn.functional.softplus(y, beta=5.0)  # Smooth, differentiable non-negativity constraint for concentrations
+        return torch.clamp(torch.nn.functional.softplus(y, beta=5.0), min=0.0, max=5000.0)
 
     def fit_scalers(self, X: np.ndarray, Y: np.ndarray) -> None:
         """Compute and store mean and std for input and output normalization."""
