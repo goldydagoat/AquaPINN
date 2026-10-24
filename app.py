@@ -217,18 +217,18 @@ else:
 st.markdown("### 📊 Executive KPI & Mass Reduction Bar")
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 with kpi1:
-    st.metric("Influent Flow ($Q$)", f"{flow_rate:.0f} m³/d", f"Reactor Vol: {volume:.0f} m³")
+    st.metric(label="Influent Flow ($Q$)", value=f"{flow_rate:.0f} m³/d", help=f"Reactor Vol: {volume:.0f} m³")
 with kpi2:
-    st.metric("Influent COD ($S_S$)", f"{influent_cod:.1f} g/m³", "Raw Load")
+    st.metric(label="Influent COD ($S_S$)", value=f"{influent_cod:.1f} g/m³", help="Raw Influent Organic Load")
 with kpi3:
     cod_rem = final_row['COD_removal_pct']
-    st.metric("COD Mass Reduction", f"{cod_rem:.1f}%", f"Effluent: {final_row['COD_total']:.1f} g/m³", delta=f"{cod_rem - 85.0:+.1f}% vs target")
+    st.metric(label="COD Mass Reduction", value=f"{cod_rem:.1f}%", delta=f"{cod_rem - 85.0:+.1f}% vs target", help=f"Effluent: {final_row['COD_total']:.1f} g/m³")
 with kpi4:
     tn_in_approx = influent_nh4 + 12.0
     tn_rem = max(0.0, (1.0 - final_row['TN'] / max(tn_in_approx, 1.0)) * 100.0)
-    st.metric("Nitrogen Mass Reduction", f"{tn_rem:.1f}%", f"Effluent TN: {final_row['TN']:.1f} g N/m³", delta=f"{tn_rem - 75.0:+.1f}% vs target")
+    st.metric(label="Nitrogen Mass Reduction", value=f"{tn_rem:.1f}%", delta=f"{tn_rem - 75.0:+.1f}% vs target", help=f"Effluent TN: {final_row['TN']:.1f} g N/m³")
 with kpi5:
-    st.metric("Nitrification Efficiency", f"{final_row['NH_removal_pct']:.1f}%", f"Effluent $S_{{NH}}$: {final_row['S_NH']:.2f} g/m³")
+    st.metric(label="Nitrification Efficiency", value=f"{final_row['NH_removal_pct']:.1f}%", help=f"Effluent $S_{{NH}}$: {final_row['S_NH']:.2f} g/m³")
 
 st.divider()
 
