@@ -306,10 +306,10 @@ if has_scada:
         fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["flow_rate"], name="Flow Q (m³/d)", line=dict(color="#2563EB")))
         fig_scada.add_trace(go.Scatter(x=scada_df["timestamp"], y=scada_df["influent_cod"], name="Influent COD (g/m³)", yaxis="y2", line=dict(color="#DC2626")))
         fig_scada.update_layout(
-            title=f"Influent Flow and COD Time Series ({input_mode})",
-            xaxis_title="Timestamp",
-            yaxis=dict(title="Flow Rate (m³/d)", titlefont=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
-            yaxis2=dict(title="COD (g/m³)", titlefont=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
+            title=dict(text=f"Influent Flow and COD Time Series ({input_mode})"),
+            xaxis=dict(title_text="Timestamp"),
+            yaxis=dict(title_text="Flow Rate (m³/d)", titlefont=dict(color="#2563EB"), tickfont=dict(color="#2563EB")),
+            yaxis2=dict(title_text="COD (g/m³)", titlefont=dict(color="#DC2626"), tickfont=dict(color="#DC2626"), overlaying="y", side="right"),
             template="plotly_white",
             height=400,
             hovermode="x unified",
@@ -350,9 +350,9 @@ with tab1:
                 )
             )
         fig_ode.update_layout(
-            title="Biochemical State Concentrations over Time",
-            xaxis_title="Time (days)",
-            yaxis_title="Concentration (g/m³ or mol/m³)",
+            title=dict(text="Biochemical State Concentrations over Time"),
+            xaxis=dict(title_text="Time (days)"),
+            yaxis=dict(title_text="Concentration (g/m³ or mol/m³)"),
             hovermode="x unified",
             template="plotly_white",
             height=450,
@@ -426,9 +426,9 @@ with tab2:
             )
         )
         fig_comp.update_layout(
-            title=f"Comparison: {compare_state} ({STATE_UNITS.get(compare_state, '')})",
-            xaxis_title="Time (days)",
-            yaxis_title="Concentration",
+            title=dict(text=f"Comparison: {compare_state} ({STATE_UNITS.get(compare_state, '')})"),
+            xaxis=dict(title_text="Time (days)"),
+            yaxis=dict(title_text="Concentration"),
             hovermode="x unified",
             template="plotly_white",
             height=430,
@@ -469,7 +469,12 @@ with tab3:
                 title="PINN Training Convergence: Data Loss vs. Physics Conservation Loss (Log Scale)",
                 template="plotly_white",
             )
-            fig_diag.update_layout(height=450, hovermode="x unified")
+            fig_diag.update_layout(
+                height=450,
+                hovermode="x unified",
+                xaxis=dict(title_text="Epoch"),
+                yaxis=dict(title_text="Loss Value (Log Scale)"),
+            )
             st.plotly_chart(fig_diag, use_container_width=True)
 
             d1, d2, d3 = st.columns(3)
