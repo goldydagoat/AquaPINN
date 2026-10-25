@@ -80,15 +80,16 @@ class ASM1PINN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Predict ASM1 states from input features with guaranteed non-negativity and range bounds.
+        Forward pass: Predict ASM1 states from input features with guaranteed non-negativity.
         x tensor shape: (batch_size, input_dim)
         """
         # Apply normalization if stats are fitted
         x_norm = (x - self.input_mean) / (self.input_std + 1e-8)
         y_norm = self.network(x_norm)
-        # Denormalize output predictions and clamp to realistic upper concentration bounds (5000 g/m³) to prevent scale explosion
-        y = y_norm * (self.output_std + 1e-8) + self.output_mean
-        return torch.clamp(torch.nn.functional.softplus(y, beta=5.0), min=0.0, max=5000.0)
+        # Map normalized outputs back to physical units: y_physical = y_norm * std + mean
+        y_physical = y_norm * (self.output_std + 1e-8) + self.output_mean
+        # Apply standard softplus to enforce non-negativity (y >= 0) naturally without hard upper clamp
+        return torch.nn.functional.softplus(y_physical)
 
     def fit_scalers(self, X: np.ndarray, Y: np.ndarray) -> None:
         """Compute and store mean and std for input and output normalization."""
