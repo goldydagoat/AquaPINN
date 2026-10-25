@@ -72,32 +72,44 @@ class ASM1PINN(nn.Module):
         
         self.network = nn.Sequential(*layers)
         
-        # Normalization scaling attributes for inputs and outputs
+        # Normalization scaling attributes for inputs
         self.register_buffer("input_mean", torch.zeros(input_d))
         self.register_buffer("input_std", torch.ones(input_d))
-        self.register_buffer("output_mean", torch.zeros(output_d))
-        self.register_buffer("output_std", torch.ones(output_d))
+        
+        # Physical upper-bound lookup tensor for all 13 ASM1 state variables
+        default_max_bounds = torch.tensor([
+            500.0,    # S_I: Inert soluble organic matter
+            1000.0,   # S_S: Readily biodegradable substrate
+            5000.0,   # X_I: Inert particulate organic matter
+            5000.0,   # X_S: Slowly biodegradable substrate
+            10000.0,  # X_BH: Active heterotrophic biomass
+            2000.0,   # X_BA: Active autotrophic biomass
+            5000.0,   # X_P: Particulate decay products
+            20.0,     # S_O: Dissolved oxygen
+            100.0,    # S_NO: Nitrate and nitrite nitrogen
+            100.0,    # S_NH: Ammonium and ammonia nitrogen
+            50.0,     # S_ND: Soluble biodegradable organic nitrogen
+            500.0,    # X_ND: Particulate biodegradable organic nitrogen
+            50.0,     # S_ALK: Alkalinity
+        ], dtype=torch.float32)
+        self.register_buffer("max_bounds", default_max_bounds)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Predict ASM1 states from input features with guaranteed non-negativity.
+        Forward pass: Predict ASM1 states from input features with per-variable sigmoid bounding to max_bounds.
         x tensor shape: (batch_size, input_dim)
         """
-        # Apply normalization if stats are fitted
+        # Apply input normalization
         x_norm = (x - self.input_mean) / (self.input_std + 1e-8)
-        y_norm = self.network(x_norm)
-        # Map normalized outputs back to physical units: y_physical = y_norm * std + mean
-        y_physical = y_norm * (self.output_std + 1e-8) + self.output_mean
-        # Apply standard softplus to enforce non-negativity (y >= 0) naturally without hard upper clamp
-        return torch.nn.functional.softplus(y_physical)
+        out = self.network(x_norm)
+        # Apply sigmoid scaling to guarantee every predicted state variable strictly stays between 0 and its physical maximum
+        return torch.sigmoid(out) * self.max_bounds
 
-    def fit_scalers(self, X: np.ndarray, Y: np.ndarray) -> None:
-        """Compute and store mean and std for input and output normalization."""
+    def fit_scalers(self, X: np.ndarray, Y: Optional[np.ndarray] = None) -> None:
+        """Compute and store mean and std for input normalization."""
         device = self.input_mean.device
         self.input_mean.copy_(torch.tensor(X.mean(axis=0), dtype=torch.float32, device=device))
         self.input_std.copy_(torch.tensor(X.std(axis=0) + 1e-6, dtype=torch.float32, device=device))
-        self.output_mean.copy_(torch.tensor(Y.mean(axis=0), dtype=torch.float32, device=device))
-        self.output_std.copy_(torch.tensor(Y.std(axis=0) + 1e-6, dtype=torch.float32, device=device))
 
     def save_checkpoint(self, filepath: Union[str, Path] = "checkpoints/pinn_asm1.pt") -> None:
         """Save model checkpoint (weights and config) to disk, creating directory if needed."""
