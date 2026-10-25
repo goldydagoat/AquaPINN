@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.preprocessing import MinMaxScaler
 
 from models.asm1_ode import (
     STATE_NAMES,
@@ -36,7 +37,7 @@ class PINNConfig:
     output_dim: int = NUM_STATES  # 13 ASM1 state variables
     learning_rate: float = 1e-3
     epochs: int = 500
-    physics_weight: float = 0.001  # Balanced weight for PDE/ODE residual loss
+    physics_weight: float = 1e-4  # Lowered default physics loss weight for short epoch runs
     data_weight: float = 1.0       # Weight for supervised data loss
     batch_size: int = 64
     device: str = "cpu"
@@ -46,7 +47,7 @@ class ASM1PINN(nn.Module):
     """
     Physics-Informed Neural Network (PINN) surrogate model for ASM1 wastewater treatment dynamics.
     
-    Maps operational inputs and time [t, D, KLa, S_S_in, S_NH_in] to the 13 ASM1 state variables.
+    Maps operational inputs and time [t, D, KLa, S_S_in, S_NH_in] to normalized 13 ASM1 state variables in [0, 1].
     """
 
     def __init__(self, config: Optional[PINNConfig] = None) -> None:
@@ -75,37 +76,33 @@ class ASM1PINN(nn.Module):
         # Normalization scaling attributes for inputs
         self.register_buffer("input_mean", torch.zeros(input_d))
         self.register_buffer("input_std", torch.ones(input_d))
-        
-        # Physical upper-bound lookup tensor for all 13 ASM1 state variables
-        default_max_bounds = torch.tensor([
-            500.0,    # S_I: Inert soluble organic matter
-            1000.0,   # S_S: Readily biodegradable substrate
-            5000.0,   # X_I: Inert particulate organic matter
-            5000.0,   # X_S: Slowly biodegradable substrate
-            10000.0,  # X_BH: Active heterotrophic biomass
-            2000.0,   # X_BA: Active autotrophic biomass
-            5000.0,   # X_P: Particulate decay products
-            20.0,     # S_O: Dissolved oxygen
-            100.0,    # S_NO: Nitrate and nitrite nitrogen
-            100.0,    # S_NH: Ammonium and ammonia nitrogen
-            50.0,     # S_ND: Soluble biodegradable organic nitrogen
-            500.0,    # X_ND: Particulate biodegradable organic nitrogen
-            50.0,     # S_ALK: Alkalinity
-        ], dtype=torch.float32)
-        self.register_buffer("max_bounds", default_max_bounds)
+        self.target_scaler: Optional[MinMaxScaler] = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Predict ASM1 states from input features with per-variable sigmoid bounding to max_bounds.
+        Forward pass: Predict normalized ASM1 states in [0, 1] using torch.sigmoid.
         x tensor shape: (batch_size, input_dim)
         """
         # Apply input normalization
         x_norm = (x - self.input_mean) / (self.input_std + 1e-8)
         out = self.network(x_norm)
-        # Apply sigmoid scaling to guarantee every predicted state variable strictly stays between 0 and its physical maximum
-        return torch.sigmoid(out) * self.max_bounds
+        # Use torch.sigmoid as final activation layer so network predictions natively output in normalized [0, 1] interval
+        return torch.sigmoid(out)
 
-    def fit_scalers(self, X: np.ndarray, Y: Optional[np.ndarray] = None) -> None:
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """
+        Inference method: Unscale predictions back to physical concentration units
+        using scaler.inverse_transform(pred_norm).
+        """
+        self.eval()
+        with torch.no_grad():
+            x_tensor = torch.tensor(X, dtype=torch.float32, device=self.input_mean.device)
+            pred_norm = self.forward(x_tensor).cpu().numpy()
+            if self.target_scaler is not None:
+                return self.target_scaler.inverse_transform(pred_norm)
+            return pred_norm
+
+    def fit_scalers(self, X: np.ndarray) -> None:
         """Compute and store mean and std for input normalization."""
         device = self.input_mean.device
         self.input_mean.copy_(torch.tensor(X.mean(axis=0), dtype=torch.float32, device=device))
@@ -129,6 +126,7 @@ class ASM1PINN(nn.Module):
                 "device": self.config.device,
             },
             "state_dict": self.state_dict(),
+            "target_scaler": self.target_scaler,
         }, path)
 
     @classmethod
@@ -142,6 +140,7 @@ class ASM1PINN(nn.Module):
         config = PINNConfig(**config_dict)
         model = cls(config=config)
         model.load_state_dict(checkpoint["state_dict"])
+        model.target_scaler = checkpoint.get("target_scaler", None)
         model.eval()
         return model
 
@@ -156,6 +155,7 @@ class PINNTrainer:
         self.model = model
         self.params = params or ASM1Parameters()
         self.simulator = ASM1Simulator(params=self.params)
+        self.target_scaler: Optional[MinMaxScaler] = None
 
     def compute_physics_loss(
         self, t_tensor: torch.Tensor, controls_tensor: torch.Tensor, pred_states: torch.Tensor
@@ -164,8 +164,14 @@ class PINNTrainer:
         Compute rigorous physics residual loss based on ASM1 kinetic ODEs for S_S, X_BH, S_O, and S_NH,
         incorporating mass conservation and strict non-negativity penalties.
         """
+        # Unscale pred_states from normalized [0, 1] to physical concentration units for ODE kinetics
+        if hasattr(self.model, "target_min") and hasattr(self.model, "target_max"):
+            pred_physical = pred_states * (self.model.target_max - self.model.target_min + 1e-8) + self.model.target_min
+        else:
+            pred_physical = pred_states
+
         S_I, S_S, X_I, X_S, X_BH, X_BA, X_P, S_O, S_NO, S_NH, S_ND, X_ND, S_ALK = [
-            pred_states[:, k] for k in range(NUM_STATES)
+            pred_physical[:, k] for k in range(NUM_STATES)
         ]
         
         p = self.params
@@ -228,13 +234,23 @@ class PINNTrainer:
         p_weight = physics_weight if physics_weight is not None else cfg.physics_weight
         d_weight = getattr(cfg, "data_weight", 1.0)
 
+        # Fit MinMaxScaler on training targets state variables and scale to [0, 1] prior to model optimization
+        self.target_scaler = MinMaxScaler(feature_range=(0, 1))
+        Y_train_norm = self.target_scaler.fit_transform(Y_train)
+        self.model.target_scaler = self.target_scaler
+
         device = torch.device(cfg.device)
         self.model.to(device)
-        self.model.fit_scalers(X_train, Y_train)
+        self.model.fit_scalers(X_train)
+
+        target_min = torch.tensor(self.target_scaler.data_min_, dtype=torch.float32, device=device)
+        target_max = torch.tensor(self.target_scaler.data_max_, dtype=torch.float32, device=device)
+        self.model.register_buffer("target_min", target_min)
+        self.model.register_buffer("target_max", target_max)
 
         dataset = torch.utils.data.TensorDataset(
             torch.tensor(X_train, dtype=torch.float32),
-            torch.tensor(Y_train, dtype=torch.float32),
+            torch.tensor(Y_train_norm, dtype=torch.float32),
         )
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -258,7 +274,7 @@ class PINNTrainer:
                 optimizer.zero_grad()
                 pred_y = self.model(batch_x)
 
-                # Data-driven supervised loss (fitting time-series observations)
+                # Data-driven supervised loss (fitting normalized time-series observations in [0, 1])
                 data_loss = criterion(pred_y, batch_y)
 
                 # Physics-informed loss (ASM1 kinetic ODE residuals for S_S, X_BH, S_O, S_NH)
@@ -266,7 +282,7 @@ class PINNTrainer:
                 controls_tensor = batch_x[:, 1:] if batch_x.shape[1] > 1 else torch.zeros((batch_x.shape[0], 4), device=device)
                 physics_loss = self.compute_physics_loss(t_tensor, controls_tensor, pred_y)
 
-                # Explicitly balanced total loss
+                # Explicitly balanced total loss (with lowered default physics_weight for data prioritization)
                 total_loss = d_weight * data_loss + p_weight * physics_loss
                 total_loss.backward()
                 optimizer.step()
@@ -295,7 +311,7 @@ def train_pinn(
     num_samples: int = 500,
     epochs: int = 200,
     hidden_dim: int = 64,
-    physics_weight: float = 0.01,
+    physics_weight: float = 1e-4,
 ) -> Tuple[ASM1PINN, Dict[str, List[float]]]:
     """
     Convenience function to generate ASM1 simulation dataset and train ASM1PINN surrogate.

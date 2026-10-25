@@ -399,9 +399,7 @@ with tab2:
         snh_vals = np.full_like(t_vals, influent_nh4)
         
         X_eval = np.stack([t_vals, d_vals, kla_vals, ss_vals, snh_vals], axis=-1)
-        with torch.no_grad():
-            preds_tensor = model(torch.tensor(X_eval, dtype=torch.float32))
-            preds_np = preds_tensor.numpy()
+        preds_np = model.predict(X_eval)
 
         compare_state = st.selectbox("Select State for PINN vs ODE Comparison", options=STATE_NAMES, index=1)
         state_idx = STATE_NAMES.index(compare_state)
