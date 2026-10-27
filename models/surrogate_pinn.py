@@ -86,13 +86,16 @@ class ASM1PINN(nn.Module):
         self.register_buffer("time_max", torch.tensor(7.0, dtype=torch.float32))
         self.target_scaler: Optional[MinMaxScaler] = None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Forward pass: Normalize time t (col 0) to [0, 1] and scale by 5.0 multiplier (t_scaled = t_norm * 5.0),
+        Forward pass: Normalize time t (col 0 or explicit t tensor) to [0, 1] and scale by 5.0,
         normalize other features (cols 1:) via mean/std, then predict normalized ASM1 states in [0, 1] using torch.sigmoid.
         """
-        # Time feature scaling multiplier (t_scaled = t_norm * 5.0)
-        t_norm = (x[:, 0:1] / (self.time_max + 1e-8)) * 5.0
+        if t is not None:
+            t_norm = (t.view(-1, 1) / (self.time_max + 1e-8)) * 5.0
+        else:
+            t_norm = (x[:, 0:1] / (self.time_max + 1e-8)) * 5.0
+
         if x.shape[1] > 1:
             other_norm = (x[:, 1:] - self.input_mean[1:]) / (self.input_std[1:] + 1e-8)
             x_norm = torch.cat([t_norm, other_norm], dim=-1)
@@ -103,15 +106,19 @@ class ASM1PINN(nn.Module):
         # Use torch.sigmoid as final activation layer so network predictions natively output in normalized [0, 1] interval
         return torch.sigmoid(out)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray, t: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Inference method: Unscale predictions back to physical concentration units
-        using scaler.inverse_transform(pred_norm).
+        using scaler.inverse_transform(pred_norm). Accepts explicit time grid t.
         """
         self.eval()
         with torch.no_grad():
-            x_tensor = torch.tensor(X, dtype=torch.float32, device=self.input_mean.device)
-            pred_norm = self.forward(x_tensor).cpu().numpy()
+            X_copy = X.copy()
+            if t is not None and len(t) == X_copy.shape[0]:
+                X_copy[:, 0] = t
+            x_tensor = torch.tensor(X_copy, dtype=torch.float32, device=self.input_mean.device)
+            t_tensor = torch.tensor(t, dtype=torch.float32, device=self.input_mean.device) if t is not None else None
+            pred_norm = self.forward(x_tensor, t=t_tensor).cpu().numpy()
             if self.target_scaler is not None:
                 return self.target_scaler.inverse_transform(pred_norm)
             return pred_norm

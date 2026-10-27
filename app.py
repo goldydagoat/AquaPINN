@@ -234,23 +234,35 @@ st.divider()
 
 # Session state management for PINN training & checkpointing
 checkpoint_path = Path("checkpoints/pinn_asm1.pt")
+if "pinn_trained" not in st.session_state:
+    st.session_state.pinn_trained = False
+if "active_pinn_model" not in st.session_state:
+    st.session_state.active_pinn_model = None
+
 if "pinn_model" not in st.session_state or st.session_state.pinn_model is None:
     if checkpoint_path.exists():
         try:
-            st.session_state.pinn_model = ASM1PINN.load_checkpoint(checkpoint_path)
+            loaded_model = ASM1PINN.load_checkpoint(checkpoint_path)
+            st.session_state.pinn_model = loaded_model
+            st.session_state.active_pinn_model = loaded_model
+            st.session_state.pinn_trained = True
             st.session_state.train_history = []
             st.session_state.checkpoint_loaded = True
         except Exception:
             st.session_state.pinn_model = None
+            st.session_state.active_pinn_model = None
+            st.session_state.pinn_trained = False
             st.session_state.train_history = None
             st.session_state.checkpoint_loaded = False
     else:
         st.session_state.pinn_model = None
+        st.session_state.active_pinn_model = None
+        st.session_state.pinn_trained = False
         st.session_state.train_history = None
         st.session_state.checkpoint_loaded = False
 
 # Sidebar status & dynamic warning/success check on checkpoint existence
-if checkpoint_path.exists() or getattr(st.session_state, "checkpoint_loaded", False) or st.session_state.pinn_model is not None:
+if checkpoint_path.exists() or getattr(st.session_state, "checkpoint_loaded", False) or st.session_state.pinn_model is not None or st.session_state.get("pinn_trained", False):
     st.sidebar.success("✅ Pre-trained PINN checkpoint active (`checkpoints/pinn_asm1.pt`).")
 else:
     st.sidebar.warning("⚠️ No model checkpoint found at `checkpoints/pinn_asm1.pt`. Please train the PINN surrogate model.")
@@ -265,6 +277,8 @@ if train_button:
             physics_weight=physics_w,
         )
         model.save_checkpoint("checkpoints/pinn_asm1.pt")
+        st.session_state['active_pinn_model'] = model
+        st.session_state['pinn_trained'] = True
         st.session_state.pinn_model = model
         st.session_state.train_history = history
         st.session_state.checkpoint_loaded = True
@@ -376,68 +390,82 @@ with tab2:
     st.subheader("PINN Surrogate vs. First-Principles ODE Solution")
     st.markdown("Compare the real-time inference predictions of the PyTorch Physics-Informed Neural Network against numerical ODE integration.")
 
-    if st.session_state.pinn_model is None:
+    active_model = st.session_state.get('active_pinn_model') or st.session_state.pinn_model
+    if not st.session_state.get('pinn_trained', False) and active_model is None:
         st.info("ℹ️ Train the PINN surrogate model using the sidebar control panel (**Train PINN Surrogate**) to view surrogate predictions.")
         # Show mock or un-trained comparison notice
         if st.button("Train Quick PINN Now"):
             with st.spinner("Quick training in progress..."):
-                model, history = train_pinn(days=srt, num_samples=200, epochs=80, hidden_dim=64, physics_weight=0.01)
+                model, history = train_pinn(days=srt, num_samples=300, epochs=150, hidden_dim=128, physics_weight=1e-4)
                 model.save_checkpoint("checkpoints/pinn_asm1.pt")
+                st.session_state['active_pinn_model'] = model
+                st.session_state['pinn_trained'] = True
                 st.session_state.pinn_model = model
                 st.session_state.train_history = history
                 st.session_state.checkpoint_loaded = True
             st.rerun()
     else:
-        model = st.session_state.pinn_model
-        model.eval()
-        
-        # Prepare evaluation inputs
-        t_vals = sim_df["time"].values
-        d_vals = np.full_like(t_vals, flow_rate / volume)
-        kla_vals = np.full_like(t_vals, kla)
-        ss_vals = np.full_like(t_vals, influent_cod)
-        snh_vals = np.full_like(t_vals, influent_nh4)
-        
-        X_eval = np.stack([t_vals, d_vals, kla_vals, ss_vals, snh_vals], axis=-1)
-        preds_np = model.predict(X_eval)
+        model = st.session_state.get('active_pinn_model') if st.session_state.get('pinn_trained', False) else (st.session_state.pinn_model or st.session_state.get('active_pinn_model'))
+        if model is None and checkpoint_path.exists():
+            try:
+                model = ASM1PINN.load_checkpoint(checkpoint_path)
+                st.session_state.active_pinn_model = model
+                st.session_state.pinn_trained = True
+            except Exception:
+                model = None
 
-        compare_state = st.selectbox("Select State for PINN vs ODE Comparison", options=STATE_NAMES, index=1)
-        state_idx = STATE_NAMES.index(compare_state)
+        if model is not None:
+            model.eval()
+            
+            # Time vector evaluation across t = np.linspace(0, 7, 500) matching ODE solution time points
+            t_vals = np.linspace(0, 7, 500)
+            ode_eval_df = simulate_asm1(days=max(srt, 7.0), num_points=500)
+            
+            d_vals = np.full_like(t_vals, flow_rate / volume)
+            kla_vals = np.full_like(t_vals, kla)
+            ss_vals = np.full_like(t_vals, influent_cod)
+            snh_vals = np.full_like(t_vals, influent_nh4)
+            
+            X_eval = np.stack([t_vals, d_vals, kla_vals, ss_vals, snh_vals], axis=-1)
+            preds_np = model.predict(X_eval, t=t_vals)
 
-        fig_comp = go.Figure()
-        fig_comp.add_trace(
-            go.Scatter(
-                x=sim_df["time"],
-                y=sim_df[compare_state],
-                mode="lines",
-                name=f"ASM1 ODE (Ground Truth)",
-                line=dict(color="#2563EB", width=3),
+            compare_state = st.selectbox("Select State for PINN vs ODE Comparison", options=STATE_NAMES, index=1)
+            state_idx = STATE_NAMES.index(compare_state)
+
+            fig_comp = go.Figure()
+            fig_comp.add_trace(
+                go.Scatter(
+                    x=ode_eval_df["time"],
+                    y=ode_eval_df[compare_state],
+                    mode="lines",
+                    name=f"ASM1 ODE (Ground Truth)",
+                    line=dict(color="#2563EB", width=3),
+                )
             )
-        )
-        fig_comp.add_trace(
-            go.Scatter(
-                x=sim_df["time"],
-                y=preds_np[:, state_idx],
-                mode="lines",
-                name=f"PINN Surrogate Prediction",
-                line=dict(color="#DC2626", width=2, dash="dash"),
+            fig_comp.add_trace(
+                go.Scatter(
+                    x=t_vals,
+                    y=preds_np[:, state_idx],
+                    mode="lines",
+                    name=f"PINN Surrogate Prediction",
+                    line=dict(color="#DC2626", width=2, dash="dash"),
+                )
             )
-        )
-        fig_comp.update_layout(
-            title=dict(text=f"Comparison: {compare_state} ({STATE_UNITS.get(compare_state, '')})"),
-            xaxis=dict(title_text="Time (days)"),
-            yaxis=dict(title_text="Concentration"),
-            hovermode="x unified",
-            template="plotly_white",
-            height=430,
-        )
-        st.plotly_chart(fig_comp, use_container_width=True)
+            fig_comp.update_layout(
+                title=dict(text=f"Comparison: {compare_state} ({STATE_UNITS.get(compare_state, '')})"),
+                xaxis=dict(title_text="Time (days)"),
+                yaxis=dict(title_text="Concentration"),
+                hovermode="x unified",
+                template="plotly_white",
+                height=430,
+            )
+            st.plotly_chart(fig_comp, use_container_width=True)
 
-        # Accuracy Metrics
-        ode_vals = sim_df[compare_state].values
-        pinn_vals = preds_np[:, state_idx]
-        rmse = np.sqrt(np.mean((ode_vals - pinn_vals) ** 2))
-        mae = np.mean(np.abs(ode_vals - pinn_vals))
+            # Accuracy Metrics
+            ode_vals = ode_eval_df[compare_state].values
+            pinn_vals = preds_np[:, state_idx]
+            rmse = np.sqrt(np.mean((ode_vals - pinn_vals) ** 2))
+            mae = np.mean(np.abs(ode_vals - pinn_vals))
         
         m1, m2 = st.columns(2)
         with m1:
