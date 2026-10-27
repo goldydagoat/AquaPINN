@@ -4,6 +4,7 @@ Streamlit Web Application combining ASM1 First-Principles ODE Simulation with Py
 """
 
 from __future__ import annotations
+import json
 from pathlib import Path
 import time
 import numpy as np
@@ -195,6 +196,21 @@ def run_simulation(q, v, k, ss_in, snh_in, days, t_c):
         influent_override=influent_override,
         temp_celsius=t_c,
     )
+
+
+@st.cache_data
+def load_pinn_sweep_results(file_path: str = "reports/pinn_sweep_results.json") -> dict | None:
+    """Load precomputed physics loss weight hyperparameter sweep benchmark results if present."""
+    path = Path(file_path)
+    if not path.is_file():
+        path = Path(__file__).resolve().parent / file_path
+    if path.is_file():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
 
 sim_df = run_simulation(flow_rate, volume, kla, influent_cod, influent_nh4, srt, temp)
 final_row = sim_df.iloc[-1]
@@ -467,11 +483,13 @@ with tab2:
             rmse = np.sqrt(np.mean((ode_vals - pinn_vals) ** 2))
             mae = np.mean(np.abs(ode_vals - pinn_vals))
         
-        m1, m2 = st.columns(2)
-        with m1:
-            st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.4f} {STATE_UNITS.get(compare_state, '')}")
-        with m2:
-            st.metric("Mean Absolute Error (MAE)", f"{mae:.4f} {STATE_UNITS.get(compare_state, '')}")
+            m1, m2 = st.columns(2)
+            with m1:
+                st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.4f} {STATE_UNITS.get(compare_state, '')}")
+            with m2:
+                st.metric("Mean Absolute Error (MAE)", f"{mae:.4f} {STATE_UNITS.get(compare_state, '')}")
+        else:
+            st.warning("⚠️ No trained PINN surrogate model available for evaluation. Please train a model using the sidebar controls.")
 
 with tab3:
     st.subheader("🔬 PINN Model Diagnostics & Loss Convergence Analysis")
@@ -533,6 +551,181 @@ with tab3:
     cod_in = influent_cod + 30.0 + 50.0 + 200.0  # approximate total influent COD
     cod_out = final_row["COD_total"]
     st.progress(min(max(cod_out / max(cod_in, 1.0), 0.0), 1.0), text=f"Reactor COD Mass Balance Ratio: Effluent / Influent = {cod_out/cod_in:.2f}")
+
+    # Precomputed Physics Regularization Benchmark Sweep
+    sweep_data = load_pinn_sweep_results()
+    if sweep_data is not None:
+        st.markdown("---")
+        st.markdown("### 📊 Physics Regularization ($\lambda$) Benchmark Comparison")
+        st.markdown(
+            "Hyperparameter benchmark evaluating surrogate generalization error across physics regularization weights "
+            r"$\lambda \in [10^{-4}, 10^{-3}, 10^{-2}, 10^{-1}]$ against 7-day ASM1 ODE ground-truth solutions."
+        )
+
+        opt_cfg = sweep_data.get("optimal_configuration", {})
+        best_rmse_info = opt_cfg.get("best_by_mean_rmse", {})
+        best_mae_info = opt_cfg.get("best_by_mean_mae", {})
+
+        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+        with b_col1:
+            st.metric(
+                "Optimal Regularization Weight ($\lambda$)",
+                f"{best_rmse_info.get('lambda_str', '1e-4')}",
+                "Lowest Mean RMSE & MAE",
+            )
+        with b_col2:
+            st.metric(
+                "Best Mean RMSE",
+                f"{best_rmse_info.get('mean_rmse', 0.0):.4f} g/m³",
+                "13 State Average",
+            )
+        with b_col3:
+            st.metric(
+                "Best Mean MAE",
+                f"{best_mae_info.get('mean_mae', 0.0):.4f} g/m³",
+                "13 State Average",
+            )
+        with b_col4:
+            epochs_eval = sweep_data.get("metadata", {}).get("epochs", 500)
+            st.metric("Sweep Epochs", f"{epochs_eval}", "500 Collocation Points")
+
+        # Interactive Plotly Benchmark Chart: Mean RMSE and Mean MAE vs lambda weight
+        sweep_results = sweep_data.get("sweep_results", [])
+        if sweep_results:
+            lambdas = [r["lambda"] for r in sweep_results]
+            lambda_strs = [r.get("lambda_str", f"{r['lambda']:g}") for r in sweep_results]
+            mean_rmses = [r.get("summary_metrics", {}).get("mean_rmse", 0.0) for r in sweep_results]
+            mean_maes = [r.get("summary_metrics", {}).get("mean_mae", 0.0) for r in sweep_results]
+
+            fig_sweep = go.Figure()
+            fig_sweep.add_trace(
+                go.Scatter(
+                    x=lambdas,
+                    y=mean_rmses,
+                    mode="lines+markers",
+                    name="Mean RMSE",
+                    line=dict(color="#2563EB", width=3),
+                    marker=dict(size=10, symbol="circle"),
+                    hovertemplate="<b>λ = %{x}</b><br>Mean RMSE: %{y:.4f} g/m³<extra></extra>",
+                )
+            )
+            fig_sweep.add_trace(
+                go.Scatter(
+                    x=lambdas,
+                    y=mean_maes,
+                    mode="lines+markers",
+                    name="Mean MAE",
+                    line=dict(color="#DC2626", width=3, dash="dash"),
+                    marker=dict(size=10, symbol="diamond"),
+                    hovertemplate="<b>λ = %{x}</b><br>Mean MAE: %{y:.4f} g/m³<extra></extra>",
+                )
+            )
+            fig_sweep.update_layout(
+                title=dict(text="Physics Regularization Benchmark: Mean RMSE & MAE vs. Lambda Weight (λ)"),
+                xaxis=dict(
+                    title_text="Physics Loss Regularization Weight (λ, Log Scale)",
+                    type="log",
+                    tickvals=lambdas,
+                    ticktext=[f"λ = {s}" for s in lambda_strs],
+                ),
+                yaxis=dict(
+                    title_text="Concentration Error (g/m³ or mol/m³)",
+                ),
+                hovermode="x unified",
+                template="plotly_white",
+                height=420,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                ),
+            )
+            st.plotly_chart(fig_sweep, use_container_width=True)
+
+        # State-by-state NRMSE breakdown table for lambda = 1e-4
+        target_lambda_entry = None
+        if "by_lambda" in sweep_data:
+            target_lambda_entry = (
+                sweep_data["by_lambda"].get("0.0001")
+                or sweep_data["by_lambda"].get("1e-4")
+                or sweep_data["by_lambda"].get("1e-04")
+            )
+        if target_lambda_entry is None and sweep_results:
+            for entry in sweep_results:
+                lam_val = entry.get("lambda")
+                if lam_val is not None and np.isclose(float(lam_val), 1e-4, atol=1e-7):
+                    target_lambda_entry = entry
+                    break
+
+        if target_lambda_entry is not None:
+            st.markdown("#### 📋 State-by-State NRMSE Breakdown Table ($\lambda = 10^{-4}$)")
+            st.markdown(
+                "Normalized Root Mean Squared Error (NRMSE), RMSE, and MAE across all 13 ASM1 biochemical state variables "
+                "evaluated against ground-truth numerical ODE integration for the optimal regularization weight $\lambda = 1\times 10^{-4}$."
+            )
+
+            state_descriptions = {
+                "S_I": "Inert soluble organic matter",
+                "S_S": "Readily biodegradable substrate",
+                "X_I": "Inert particulate organic matter",
+                "X_S": "Slowly biodegradable substrate",
+                "X_BH": "Active heterotrophic biomass",
+                "X_BA": "Active autotrophic biomass",
+                "X_P": "Particulate decay products",
+                "S_O": "Dissolved oxygen",
+                "S_NO": "Nitrate & nitrite nitrogen",
+                "S_NH": "Ammonium & ammonia nitrogen",
+                "S_ND": "Soluble biodegradable organic nitrogen",
+                "X_ND": "Particulate biodegradable organic nitrogen",
+                "S_ALK": "Alkalinity",
+            }
+
+            state_metrics = target_lambda_entry.get("state_metrics", {})
+            table_rows = []
+            for st_name, metrics in state_metrics.items():
+                table_rows.append({
+                    "State Variable": st_name,
+                    "Description": state_descriptions.get(st_name, ""),
+                    "Unit": metrics.get("unit", STATE_UNITS.get(st_name, "")),
+                    "NRMSE (%)": metrics.get("nrmse_percent", 0.0),
+                    "RMSE": metrics.get("rmse", 0.0),
+                    "MAE": metrics.get("mae", 0.0),
+                    "Ground Truth Mean": metrics.get("mean_ground_truth", 0.0),
+                })
+
+            breakdown_df = pd.DataFrame(table_rows)
+
+            st.dataframe(
+                breakdown_df,
+                column_config={
+                    "State Variable": st.column_config.TextColumn("State Variable", width="small"),
+                    "Description": st.column_config.TextColumn("Description", width="medium"),
+                    "Unit": st.column_config.TextColumn("Unit", width="small"),
+                    "NRMSE (%)": st.column_config.NumberColumn(
+                        "NRMSE (%)",
+                        format="%.2f%%",
+                        help="Normalized Root Mean Squared Error relative to variable dynamic range",
+                    ),
+                    "RMSE": st.column_config.NumberColumn("RMSE", format="%.4f"),
+                    "MAE": st.column_config.NumberColumn("MAE", format="%.4f"),
+                    "Ground Truth Mean": st.column_config.NumberColumn("Ground Truth Mean", format="%.2f"),
+                },
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            csv_bytes = breakdown_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Download State NRMSE Breakdown CSV (λ = 1e-4)",
+                data=csv_bytes,
+                file_name="pinn_nrmse_breakdown_lambda_1e-4.csv",
+                mime="text/csv",
+                help="Download full 13-state ASM1 error evaluation for lambda = 1e-4",
+            )
+    else:
+        st.info("ℹ️ Precomputed physics loss sweep benchmark results not found at `reports/pinn_sweep_results.json`. Run `python scripts/sweep_physics_loss.py` to generate the benchmark comparison.")
 
 with tab4:
     st.subheader("Digital Twin Process Control & Advisor")

@@ -169,11 +169,18 @@ class ASM1PINN(nn.Module):
         path = Path(filepath)
         if not path.exists():
             raise FileNotFoundError(f"Checkpoint not found at {path}")
-        checkpoint = torch.load(path, map_location="cpu")
+        try:
+            checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+        except TypeError:
+            checkpoint = torch.load(path, map_location="cpu")
         config_dict = checkpoint.get("config", {})
         config = PINNConfig(**config_dict)
         model = cls(config=config)
-        model.load_state_dict(checkpoint["state_dict"])
+        state_dict = checkpoint["state_dict"]
+        # Filter keys to match model state_dict for backward compatibility
+        model_keys = set(model.state_dict().keys())
+        filtered_state_dict = {k: v for k, v in state_dict.items() if k in model_keys}
+        model.load_state_dict(filtered_state_dict, strict=False)
         model.target_scaler = checkpoint.get("target_scaler", None)
         model.eval()
         return model
