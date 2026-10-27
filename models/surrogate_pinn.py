@@ -10,6 +10,7 @@ This module implements:
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import random
 from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
@@ -35,9 +36,9 @@ class PINNConfig:
     hidden_dim: int = 128
     num_layers: int = 4
     output_dim: int = NUM_STATES  # 13 ASM1 state variables
-    learning_rate: float = 1e-3
+    learning_rate: float = 3e-3
     epochs: int = 500
-    physics_weight: float = 1e-4  # Lowered default physics loss weight for short epoch runs
+    physics_weight: float = 1e-4  # Balanced physics loss weight
     data_weight: float = 1.0       # Weight for supervised data loss
     batch_size: int = 64
     device: str = "cpu"
@@ -52,6 +53,12 @@ class ASM1PINN(nn.Module):
 
     def __init__(self, config: Optional[PINNConfig] = None) -> None:
         super().__init__()
+        torch.manual_seed(42)
+        np.random.seed(42)
+        random.seed(42)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(42)
+
         self.config = config or PINNConfig()
         
         layers: List[nn.Module] = []
@@ -76,15 +83,22 @@ class ASM1PINN(nn.Module):
         # Normalization scaling attributes for inputs
         self.register_buffer("input_mean", torch.zeros(input_d))
         self.register_buffer("input_std", torch.ones(input_d))
+        self.register_buffer("time_max", torch.tensor(7.0, dtype=torch.float32))
         self.target_scaler: Optional[MinMaxScaler] = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Predict normalized ASM1 states in [0, 1] using torch.sigmoid.
-        x tensor shape: (batch_size, input_dim)
+        Forward pass: Explicitly normalize time t (col 0) to [0, 1] and other features (cols 1:) via mean/std,
+        then predict normalized ASM1 states in [0, 1] using torch.sigmoid.
         """
-        # Apply input normalization
-        x_norm = (x - self.input_mean) / (self.input_std + 1e-8)
+        # Explicit time input feature normalization to [0, 1]
+        t_norm = x[:, 0:1] / (self.time_max + 1e-8)
+        if x.shape[1] > 1:
+            other_norm = (x[:, 1:] - self.input_mean[1:]) / (self.input_std[1:] + 1e-8)
+            x_norm = torch.cat([t_norm, other_norm], dim=-1)
+        else:
+            x_norm = t_norm
+
         out = self.network(x_norm)
         # Use torch.sigmoid as final activation layer so network predictions natively output in normalized [0, 1] interval
         return torch.sigmoid(out)
@@ -103,10 +117,15 @@ class ASM1PINN(nn.Module):
             return pred_norm
 
     def fit_scalers(self, X: np.ndarray) -> None:
-        """Compute and store mean and std for input normalization."""
+        """Compute and store time max and feature mean/std for input normalization."""
         device = self.input_mean.device
-        self.input_mean.copy_(torch.tensor(X.mean(axis=0), dtype=torch.float32, device=device))
-        self.input_std.copy_(torch.tensor(X.std(axis=0) + 1e-6, dtype=torch.float32, device=device))
+        t_max_val = float(np.max(X[:, 0])) if X.shape[0] > 0 else 7.0
+        self.time_max.copy_(torch.tensor(max(t_max_val, 1e-6), dtype=torch.float32, device=device))
+        if X.shape[1] > 1:
+            self.input_mean[1:].copy_(torch.tensor(X[:, 1:].mean(axis=0), dtype=torch.float32, device=device))
+            self.input_std[1:].copy_(torch.tensor(X[:, 1:].std(axis=0) + 1e-6, dtype=torch.float32, device=device))
+        self.input_mean[0].copy_(torch.tensor(0.0, dtype=torch.float32, device=device))
+        self.input_std[0].copy_(torch.tensor(1.0, dtype=torch.float32, device=device))
 
     def save_checkpoint(self, filepath: Union[str, Path] = "checkpoints/pinn_asm1.pt") -> None:
         """Save model checkpoint (weights and config) to disk, creating directory if needed."""
@@ -227,6 +246,17 @@ class PINNTrainer:
         """
         Train the ASM1PINN model explicitly balancing Data Loss and Physics Loss.
         """
+        # Strict deterministic seeding
+        torch.manual_seed(42)
+        np.random.seed(42)
+        random.seed(42)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(42)
+        try:
+            torch.use_deterministic_algorithms(False)
+        except Exception:
+            pass
+
         cfg = self.model.config
         epochs = epochs or cfg.epochs
         batch_size = batch_size or cfg.batch_size
@@ -234,7 +264,7 @@ class PINNTrainer:
         p_weight = physics_weight if physics_weight is not None else cfg.physics_weight
         d_weight = getattr(cfg, "data_weight", 1.0)
 
-        # Fit MinMaxScaler on training targets state variables and scale to [0, 1] prior to model optimization
+        # Fit independent per-variable MinMaxScaler across columns (axis=0)
         self.target_scaler = MinMaxScaler(feature_range=(0, 1))
         Y_train_norm = self.target_scaler.fit_transform(Y_train)
         self.model.target_scaler = self.target_scaler
@@ -254,7 +284,8 @@ class PINNTrainer:
         )
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        # Adam optimizer with learning rate 3e-3 and standard weight decay 1e-5
+        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
         criterion = nn.MSELoss()
 
         total_history = []
@@ -274,16 +305,21 @@ class PINNTrainer:
                 optimizer.zero_grad()
                 pred_y = self.model(batch_x)
 
-                # Data-driven supervised loss (fitting normalized time-series observations in [0, 1])
+                # Data-driven supervised loss
                 data_loss = criterion(pred_y, batch_y)
 
-                # Physics-informed loss (ASM1 kinetic ODE residuals for S_S, X_BH, S_O, S_NH)
+                # Physics-informed loss (ASM1 kinetic ODE residuals)
                 t_tensor = batch_x[:, 0]
                 controls_tensor = batch_x[:, 1:] if batch_x.shape[1] > 1 else torch.zeros((batch_x.shape[0], 4), device=device)
                 physics_loss = self.compute_physics_loss(t_tensor, controls_tensor, pred_y)
 
-                # Explicitly balanced total loss (with lowered default physics_weight for data prioritization)
-                total_loss = d_weight * data_loss + p_weight * physics_loss
+                # Dynamic loss balancing / normalization to prevent physics gradients from overwhelming data gradients
+                physics_scale = (physics_loss.detach() + 1e-8)
+                data_scale = (data_loss.detach() + 1e-8)
+                normalized_physics_loss = physics_loss * (data_scale / physics_scale)
+
+                # Total loss
+                total_loss = d_weight * data_loss + p_weight * normalized_physics_loss
                 total_loss.backward()
                 optimizer.step()
 
@@ -318,6 +354,12 @@ def train_pinn(
     
     Returns trained ASM1PINN model and training loss history dictionary.
     """
+    torch.manual_seed(42)
+    np.random.seed(42)
+    random.seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+
     sim_df = simulate_asm1(days=days, num_points=num_samples)
     
     # Prepare training features X: [time, dilution, kla, s_s_in, s_nh_in]
@@ -340,6 +382,7 @@ def train_pinn(
         output_dim=NUM_STATES,
         epochs=epochs,
         physics_weight=physics_weight,
+        learning_rate=3e-3,
     )
     
     model = ASM1PINN(config)
