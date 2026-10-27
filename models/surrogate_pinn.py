@@ -106,18 +106,26 @@ class ASM1PINN(nn.Module):
         # Use torch.sigmoid as final activation layer so network predictions natively output in normalized [0, 1] interval
         return torch.sigmoid(out)
 
-    def predict(self, X: np.ndarray, t: Optional[np.ndarray] = None) -> np.ndarray:
+    def predict(self, X: np.ndarray, t: Optional[Union[np.ndarray, list, torch.Tensor]] = None) -> np.ndarray:
         """
         Inference method: Unscale predictions back to physical concentration units
-        using scaler.inverse_transform(pred_norm). Accepts explicit time grid t.
+        using scaler.inverse_transform(pred_norm). Accepts explicit time grid t as an optional argument.
         """
         self.eval()
         with torch.no_grad():
-            X_copy = X.copy()
-            if t is not None and len(t) == X_copy.shape[0]:
-                X_copy[:, 0] = t
+            X_copy = np.array(X, dtype=np.float32)
+            t_arr = None
+            if t is not None:
+                if isinstance(t, torch.Tensor):
+                    t_arr = t.detach().cpu().numpy().flatten()
+                else:
+                    t_arr = np.array(t, dtype=np.float32).flatten()
+                if len(t_arr) == X_copy.shape[0]:
+                    X_copy[:, 0] = t_arr
+
             x_tensor = torch.tensor(X_copy, dtype=torch.float32, device=self.input_mean.device)
-            t_tensor = torch.tensor(t, dtype=torch.float32, device=self.input_mean.device) if t is not None else None
+            t_tensor = torch.tensor(t_arr, dtype=torch.float32, device=self.input_mean.device) if t_arr is not None else None
+
             pred_norm = self.forward(x_tensor, t=t_tensor).cpu().numpy()
             if self.target_scaler is not None:
                 return self.target_scaler.inverse_transform(pred_norm)
