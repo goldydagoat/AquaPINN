@@ -66,11 +66,11 @@ class ASM1PINN(nn.Module):
         hidden_d = self.config.hidden_dim
         output_d = self.config.output_dim
         
-        # Input layer
+        # Input layer with nn.SiLU() (Swish) activation for smooth non-zero second-order time derivatives d^2y/dt^2
         layers.append(nn.Linear(input_d, hidden_d))
         layers.append(nn.SiLU())
         
-        # Hidden layers
+        # Hidden layers with nn.SiLU()
         for _ in range(self.config.num_layers - 2):
             layers.append(nn.Linear(hidden_d, hidden_d))
             layers.append(nn.SiLU())
@@ -88,11 +88,11 @@ class ASM1PINN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: Explicitly normalize time t (col 0) to [0, 1] and other features (cols 1:) via mean/std,
-        then predict normalized ASM1 states in [0, 1] using torch.sigmoid.
+        Forward pass: Normalize time t (col 0) to [0, 1] and scale by 5.0 multiplier (t_scaled = t_norm * 5.0),
+        normalize other features (cols 1:) via mean/std, then predict normalized ASM1 states in [0, 1] using torch.sigmoid.
         """
-        # Explicit time input feature normalization to [0, 1]
-        t_norm = x[:, 0:1] / (self.time_max + 1e-8)
+        # Time feature scaling multiplier (t_scaled = t_norm * 5.0)
+        t_norm = (x[:, 0:1] / (self.time_max + 1e-8)) * 5.0
         if x.shape[1] > 1:
             other_norm = (x[:, 1:] - self.input_mean[1:]) / (self.input_std[1:] + 1e-8)
             x_norm = torch.cat([t_norm, other_norm], dim=-1)
@@ -343,14 +343,14 @@ class PINNTrainer:
 
 
 def train_pinn(
-    days: float = 5.0,
+    days: float = 7.0,
     num_samples: int = 500,
-    epochs: int = 200,
-    hidden_dim: int = 64,
+    epochs: int = 500,
+    hidden_dim: int = 128,
     physics_weight: float = 1e-4,
 ) -> Tuple[ASM1PINN, Dict[str, List[float]]]:
     """
-    Convenience function to generate ASM1 simulation dataset and train ASM1PINN surrogate.
+    Convenience function to generate ASM1 simulation dataset densely sampled across [0, 7] days and train ASM1PINN surrogate.
     
     Returns trained ASM1PINN model and training loss history dictionary.
     """
@@ -360,9 +360,11 @@ def train_pinn(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
 
+    days = max(days, 7.0)
+    num_samples = max(num_samples, 500)
     sim_df = simulate_asm1(days=days, num_points=num_samples)
     
-    # Prepare training features X: [time, dilution, kla, s_s_in, s_nh_in]
+    # Prepare training features X: [time, dilution, kla, s_s_in, s_nh_in] sampled densely across [0, 7] days
     # and targets Y: 13 ASM1 state concentrations
     t_arr = sim_df["time"].values
     d_arr = np.full_like(t_arr, 1.0)     # Default D = 1.0 (Q=1000, V=1000)
