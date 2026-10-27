@@ -1,0 +1,1063 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-10-27T06:22:14.579154+00:00",
+    "script": "scripts/sweep_physics_loss.py",
+    "epochs": 500,
+    "lambdas_evaluated": [
+      0.0001,
+      0.001,
+      0.01,
+      0.1
+    ],
+    "num_states": 13,
+    "state_names": [
+      "S_I",
+      "S_S",
+      "X_I",
+      "X_S",
+      "X_BH",
+      "X_BA",
+      "X_P",
+      "S_O",
+      "S_NO",
+      "S_NH",
+      "S_ND",
+      "X_ND",
+      "S_ALK"
+    ],
+    "state_units": {
+      "S_I": "g COD/m\u00b3",
+      "S_S": "g COD/m\u00b3",
+      "X_I": "g COD/m\u00b3",
+      "X_S": "g COD/m\u00b3",
+      "X_BH": "g COD/m\u00b3",
+      "X_BA": "g COD/m\u00b3",
+      "X_P": "g COD/m\u00b3",
+      "S_O": "g O\u2082/m\u00b3",
+      "S_NO": "g N/m\u00b3",
+      "S_NH": "g N/m\u00b3",
+      "S_ND": "g N/m\u00b3",
+      "X_ND": "g N/m\u00b3",
+      "S_ALK": "mol HCO\u2083\u207b/m\u00b3"
+    },
+    "simulation_days": 7.0,
+    "num_samples": 500,
+    "device": "cpu"
+  },
+  "optimal_configuration": {
+    "best_by_mean_rmse": {
+      "lambda": 0.0001,
+      "lambda_str": "0.0001",
+      "mean_rmse": 1.867854
+    },
+    "best_by_mean_mae": {
+      "lambda": 0.0001,
+      "lambda_str": "0.0001",
+      "mean_mae": 1.031331
+    }
+  },
+  "sweep_results": [
+    {
+      "lambda": 0.0001,
+      "lambda_str": "0.0001",
+      "epochs": 500,
+      "training_time_seconds": 4.326,
+      "final_losses": {
+        "total": 0.0002102,
+        "data": 0.00021018,
+        "physics": 1073657.696
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.867854,
+        "mean_mae": 1.031331,
+        "median_rmse": 0.367062,
+        "median_mae": 0.294609,
+        "overall_rmse": 4.035833,
+        "overall_mae": 1.031331
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003666,
+          "mae": 0.002453,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0122,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.112132,
+          "mae": 0.044013,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3874,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.161571,
+          "mae": 2.66515,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.492,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.172771,
+          "mae": 0.30726,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1866,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 13.260433,
+          "mae": 7.318324,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5784,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.837162,
+          "mae": 0.550358,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5663,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.59866,
+          "mae": 1.61904,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5921,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.090636,
+          "mae": 0.054927,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.3651,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.516362,
+          "mae": 0.454487,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.6175,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.367062,
+          "mae": 0.294609,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.2081,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.015223,
+          "mae": 0.009705,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.266,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.067993,
+          "mae": 0.018942,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9499,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.078436,
+          "mae": 0.068036,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.9609,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    {
+      "lambda": 0.001,
+      "lambda_str": "0.001",
+      "epochs": 500,
+      "training_time_seconds": 3.464,
+      "final_losses": {
+        "total": 0.000208,
+        "data": 0.00020779,
+        "physics": 1074898.864
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.939098,
+        "mean_mae": 1.067085,
+        "median_rmse": 0.28564,
+        "median_mae": 0.215958,
+        "overall_rmse": 4.281198,
+        "overall_mae": 1.067085
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003647,
+          "mae": 0.002423,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0122,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.108913,
+          "mae": 0.03292,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3188,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.548419,
+          "mae": 2.904384,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5289,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.169711,
+          "mae": 0.30128,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1809,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 14.118044,
+          "mae": 7.988681,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.6158,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.861666,
+          "mae": 0.560899,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5829,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.391982,
+          "mae": 1.351971,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.545,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.095353,
+          "mae": 0.061318,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.4362,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.473131,
+          "mae": 0.372358,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.4821,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.28564,
+          "mae": 0.215958,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 0.9401,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.013357,
+          "mae": 0.007424,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.1108,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.067393,
+          "mae": 0.018366,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9327,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.071013,
+          "mae": 0.054124,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.7753,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    {
+      "lambda": 0.01,
+      "lambda_str": "0.01",
+      "epochs": 500,
+      "training_time_seconds": 3.51,
+      "final_losses": {
+        "total": 0.00021014,
+        "data": 0.00020806,
+        "physics": 1075504.16
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.915803,
+        "mean_mae": 1.033838,
+        "median_rmse": 0.314551,
+        "median_mae": 0.246865,
+        "overall_rmse": 4.28199,
+        "overall_mae": 1.033838
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003628,
+          "mae": 0.00241,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0121,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.108989,
+          "mae": 0.031445,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3205,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.403136,
+          "mae": 2.672257,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5151,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.163013,
+          "mae": 0.300338,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1684,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 14.223331,
+          "mae": 7.964089,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.6204,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.81469,
+          "mae": 0.499705,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5511,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.110202,
+          "mae": 1.166891,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.4808,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.097716,
+          "mae": 0.064196,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.4718,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.513876,
+          "mae": 0.408146,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.6097,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.314551,
+          "mae": 0.246865,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.0352,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.012844,
+          "mae": 0.007432,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.0681,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.066365,
+          "mae": 0.01802,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9032,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.073091,
+          "mae": 0.058099,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.8273,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    {
+      "lambda": 0.1,
+      "lambda_str": "0.1",
+      "epochs": 500,
+      "training_time_seconds": 3.406,
+      "final_losses": {
+        "total": 0.00025513,
+        "data": 0.00023193,
+        "physics": 1071469.567
+      },
+      "summary_metrics": {
+        "mean_rmse": 2.198463,
+        "mean_mae": 1.262518,
+        "median_rmse": 0.492518,
+        "median_mae": 0.307207,
+        "overall_rmse": 5.00372,
+        "overall_mae": 1.262518
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003862,
+          "mae": 0.002553,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0129,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.117706,
+          "mae": 0.052484,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.506,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 6.010746,
+          "mae": 3.254555,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.573,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.172026,
+          "mae": 0.307207,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1852,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 16.776076,
+          "mae": 9.931784,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.7317,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.847701,
+          "mae": 0.520585,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5734,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.276703,
+          "mae": 1.228583,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5187,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.101293,
+          "mae": 0.06901,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.5257,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.60144,
+          "mae": 0.537539,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.884,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.492518,
+          "mae": 0.393431,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.621,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.017404,
+          "mae": 0.011758,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.4473,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.066891,
+          "mae": 0.01848,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9183,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.095655,
+          "mae": 0.084769,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 2.3914,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    }
+  ],
+  "by_lambda": {
+    "0.0001": {
+      "lambda": 0.0001,
+      "lambda_str": "0.0001",
+      "epochs": 500,
+      "training_time_seconds": 4.326,
+      "final_losses": {
+        "total": 0.0002102,
+        "data": 0.00021018,
+        "physics": 1073657.696
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.867854,
+        "mean_mae": 1.031331,
+        "median_rmse": 0.367062,
+        "median_mae": 0.294609,
+        "overall_rmse": 4.035833,
+        "overall_mae": 1.031331
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003666,
+          "mae": 0.002453,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0122,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.112132,
+          "mae": 0.044013,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3874,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.161571,
+          "mae": 2.66515,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.492,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.172771,
+          "mae": 0.30726,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1866,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 13.260433,
+          "mae": 7.318324,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5784,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.837162,
+          "mae": 0.550358,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5663,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.59866,
+          "mae": 1.61904,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5921,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.090636,
+          "mae": 0.054927,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.3651,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.516362,
+          "mae": 0.454487,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.6175,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.367062,
+          "mae": 0.294609,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.2081,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.015223,
+          "mae": 0.009705,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.266,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.067993,
+          "mae": 0.018942,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9499,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.078436,
+          "mae": 0.068036,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.9609,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    "0.001": {
+      "lambda": 0.001,
+      "lambda_str": "0.001",
+      "epochs": 500,
+      "training_time_seconds": 3.464,
+      "final_losses": {
+        "total": 0.000208,
+        "data": 0.00020779,
+        "physics": 1074898.864
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.939098,
+        "mean_mae": 1.067085,
+        "median_rmse": 0.28564,
+        "median_mae": 0.215958,
+        "overall_rmse": 4.281198,
+        "overall_mae": 1.067085
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003647,
+          "mae": 0.002423,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0122,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.108913,
+          "mae": 0.03292,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3188,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.548419,
+          "mae": 2.904384,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5289,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.169711,
+          "mae": 0.30128,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1809,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 14.118044,
+          "mae": 7.988681,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.6158,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.861666,
+          "mae": 0.560899,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5829,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.391982,
+          "mae": 1.351971,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.545,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.095353,
+          "mae": 0.061318,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.4362,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.473131,
+          "mae": 0.372358,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.4821,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.28564,
+          "mae": 0.215958,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 0.9401,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.013357,
+          "mae": 0.007424,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.1108,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.067393,
+          "mae": 0.018366,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9327,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.071013,
+          "mae": 0.054124,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.7753,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    "0.01": {
+      "lambda": 0.01,
+      "lambda_str": "0.01",
+      "epochs": 500,
+      "training_time_seconds": 3.51,
+      "final_losses": {
+        "total": 0.00021014,
+        "data": 0.00020806,
+        "physics": 1075504.16
+      },
+      "summary_metrics": {
+        "mean_rmse": 1.915803,
+        "mean_mae": 1.033838,
+        "median_rmse": 0.314551,
+        "median_mae": 0.246865,
+        "overall_rmse": 4.28199,
+        "overall_mae": 1.033838
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003628,
+          "mae": 0.00241,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0121,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.108989,
+          "mae": 0.031445,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.3205,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 5.403136,
+          "mae": 2.672257,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5151,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.163013,
+          "mae": 0.300338,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1684,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 14.223331,
+          "mae": 7.964089,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.6204,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.81469,
+          "mae": 0.499705,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5511,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.110202,
+          "mae": 1.166891,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.4808,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.097716,
+          "mae": 0.064196,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.4718,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.513876,
+          "mae": 0.408146,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.6097,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.314551,
+          "mae": 0.246865,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.0352,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.012844,
+          "mae": 0.007432,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.0681,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.066365,
+          "mae": 0.01802,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9032,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.073091,
+          "mae": 0.058099,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 1.8273,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    },
+    "0.1": {
+      "lambda": 0.1,
+      "lambda_str": "0.1",
+      "epochs": 500,
+      "training_time_seconds": 3.406,
+      "final_losses": {
+        "total": 0.00025513,
+        "data": 0.00023193,
+        "physics": 1071469.567
+      },
+      "summary_metrics": {
+        "mean_rmse": 2.198463,
+        "mean_mae": 1.262518,
+        "median_rmse": 0.492518,
+        "median_mae": 0.307207,
+        "overall_rmse": 5.00372,
+        "overall_mae": 1.262518
+      },
+      "state_metrics": {
+        "S_I": {
+          "rmse": 0.003862,
+          "mae": 0.002553,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.0129,
+          "mean_ground_truth": 30.0,
+          "std_ground_truth": 0.0
+        },
+        "S_S": {
+          "rmse": 0.117706,
+          "mae": 0.052484,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.506,
+          "mean_ground_truth": 4.967221,
+          "std_ground_truth": 1.667701
+        },
+        "X_I": {
+          "rmse": 6.010746,
+          "mae": 3.254555,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.573,
+          "mean_ground_truth": 200.616901,
+          "std_ground_truth": 238.777386
+        },
+        "X_S": {
+          "rmse": 1.172026,
+          "mae": 0.307207,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 2.1852,
+          "mean_ground_truth": 8.17116,
+          "std_ground_truth": 4.778629
+        },
+        "X_BH": {
+          "rmse": 16.776076,
+          "mae": 9.931784,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.7317,
+          "mean_ground_truth": 478.83028,
+          "std_ground_truth": 493.384809
+        },
+        "X_BA": {
+          "rmse": 0.847701,
+          "mae": 0.520585,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5734,
+          "mean_ground_truth": 24.925868,
+          "std_ground_truth": 32.812625
+        },
+        "X_P": {
+          "rmse": 2.276703,
+          "mae": 1.228583,
+          "unit": "g COD/m\u00b3",
+          "nrmse_percent": 0.5187,
+          "mean_ground_truth": 86.952176,
+          "std_ground_truth": 108.396465
+        },
+        "S_O": {
+          "rmse": 0.101293,
+          "mae": 0.06901,
+          "unit": "g O\u2082/m\u00b3",
+          "nrmse_percent": 1.5257,
+          "mean_ground_truth": 5.695657,
+          "std_ground_truth": 1.382269
+        },
+        "S_NO": {
+          "rmse": 0.60144,
+          "mae": 0.537539,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.884,
+          "mean_ground_truth": 28.267108,
+          "std_ground_truth": 10.585833
+        },
+        "S_NH": {
+          "rmse": 0.492518,
+          "mae": 0.393431,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.621,
+          "mean_ground_truth": 10.943523,
+          "std_ground_truth": 10.447488
+        },
+        "S_ND": {
+          "rmse": 0.017404,
+          "mae": 0.011758,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.4473,
+          "mean_ground_truth": 1.603155,
+          "std_ground_truth": 0.418389
+        },
+        "X_ND": {
+          "rmse": 0.066891,
+          "mae": 0.01848,
+          "unit": "g N/m\u00b3",
+          "nrmse_percent": 1.9183,
+          "mean_ground_truth": 0.668885,
+          "std_ground_truth": 0.382875
+        },
+        "S_ALK": {
+          "rmse": 0.095655,
+          "mae": 0.084769,
+          "unit": "mol HCO\u2083\u207b/m\u00b3",
+          "nrmse_percent": 2.3914,
+          "mean_ground_truth": 1.591431,
+          "std_ground_truth": 1.33851
+        }
+      }
+    }
+  }
+}
